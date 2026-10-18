@@ -105,6 +105,10 @@
       ".read": false,
       ".write": false
     },
+    "assessmentJobs": {
+      ".read": false,
+      ".write": false
+    },
     "notificationTokens": {
       ".read": false,
       ".write": false

@@ -1,6 +1,6 @@
-# Smart Safety inference service (Phase A)
+# Smart Safety private inference service (Phase B)
 
-This local FastAPI service loads the verified fall and gas-condition XGBoost models once per process and converts canonical telemetry schema `2.0` into canonical assessment schema `1.0`. Phase A does not deploy this service and does not validate physical hardware.
+This FastAPI service loads the verified fall and gas-condition XGBoost models once per process and converts canonical telemetry schema `2.0` into canonical assessment schema `1.0`. In staging it is deployed privately and invoked only by the `assessTelemetry` Firebase database trigger. Local simulation does not validate physical hardware.
 
 ## Safety and interpretation limits
 
@@ -63,7 +63,11 @@ Example simulated input:
 }
 ```
 
-The returned object uses epoch-millisecond timestamps, `assessmentId == eventId`, the backend reason/recommendation code allowlists, and exact evaluated/unavailable component shapes. A later private backend integration can validate it and store it under `/assessments/{helmetId}/{eventId}` plus `/helmets/{helmetId}/currentAssessment` without permitting client writes.
+The returned object uses epoch-millisecond timestamps, `assessmentId == eventId`, the backend reason/recommendation code allowlists, and exact evaluated/unavailable component shapes. The private Phase B backend validates it and stores it under `/assessments/{helmetId}/{eventId}` plus `/helmets/{helmetId}/currentAssessment` without permitting client writes. Identical immutable events produce byte-identical assessments, including a deterministic `assessedAt`, so retries remain idempotent.
+
+## Container boundary
+
+`Dockerfile` packages the service for a private Cloud Run deployment. Do not enable unauthenticated access. Grant Cloud Run Invoker only to the service account used by the `assessTelemetry` function. Cloud Run performs Google identity-token verification before requests reach FastAPI; the application endpoint must not be exposed directly.
 
 ## Artifact provenance
 

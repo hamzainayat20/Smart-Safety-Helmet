@@ -49,6 +49,7 @@ functions/.secret.local
 **/__pycache__/
 *.py[cod]
 .model_inspect/
+.artifact-restore/
 .pip-cache/
 .npm-cache/
 .tool-appdata/

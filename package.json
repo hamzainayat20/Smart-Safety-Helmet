@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:rules": "firebase emulators:exec --project smart-safety-rules-test --only database,firestore \"node --test firebase_emulator_tests/security_rules.test.mjs\"",
+    "test:rules": "firebase emulators:exec --config firebase.rules-test.json --project smart-safety-rules-test --only database,firestore \"node --test firebase_emulator_tests/security_rules.test.mjs\"",
     "test:alert-rules": "firebase emulators:exec --project smart-safety-rules-test --only database \"node --test firebase_emulator_tests/alert_rules.test.mjs\"",
-    "test:functions": "npm --prefix functions test"
+    "test:functions": "npm --prefix functions test",
+    "test:phase-b": "firebase emulators:exec --config firebase.phase-b.json --project smart-safety-phase-b-test --only database \"node functions/scripts/phase_b_smoke.js\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.1",

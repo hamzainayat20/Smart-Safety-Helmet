@@ -9,9 +9,9 @@ from .schemas import AssessmentRequest, HealthResponse, SafetyAssessment
 
 app = FastAPI(
     title="Smart Safety Inference Service",
-    version="0.1.0",
+    version="0.2.0",
     description=(
-        "Local Phase A service for fall and gas-condition model inference. "
+        "Private Phase B service for fall and gas-condition model inference. "
         "It is not a certified safety system."
     ),
 )

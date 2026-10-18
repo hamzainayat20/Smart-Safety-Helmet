@@ -19,11 +19,19 @@ def test_assessment_matches_canonical_backend_contract(client, valid_payload):
     }
     assert body["schemaVersion"] == "1.0"
     assert body["assessmentId"] == body["eventId"] == valid_payload["eventId"]
+    assert body["assessedAt"] == valid_payload["serverReceivedAt"]
     assert body["fall"]["status"] == "evaluated"
     assert 0 <= body["fall"]["probability"] <= 1
     assert body["gas"]["status"] == "evaluated"
     assert set(body["gas"]["probabilities"]) == {"Mixture", "NoGas", "Perfume", "Smoke"}
     assert abs(sum(body["gas"]["probabilities"].values()) - 1) < 0.001
+
+
+def test_same_event_produces_byte_identical_assessment(client, valid_payload):
+    first = client.post("/v1/assess", json=valid_payload)
+    second = client.post("/v1/assess", json=valid_payload)
+    assert first.status_code == second.status_code == 200
+    assert first.json() == second.json()
 
 
 def test_warming_up_gas_is_unknown_not_safe(client, valid_payload):

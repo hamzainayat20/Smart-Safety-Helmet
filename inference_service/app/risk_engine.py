@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 from typing import Literal
 
@@ -180,7 +179,9 @@ def assess(request: AssessmentRequest, registry: ModelRegistry) -> SafetyAssessm
         assessmentId=request.eventId, eventId=request.eventId,
         helmetId=request.helmetId, deviceTimestamp=request.deviceTimestamp,
         sourceServerReceivedAt=request.serverReceivedAt,
-        assessedAt=max(int(time.time() * 1000), request.serverReceivedAt),
+        # A retry of the same immutable event must produce byte-identical output.
+        # The trusted backend receipt timestamp is stable across ingestion repair.
+        assessedAt=request.serverReceivedAt,
         modelBundleVersion=registry.bundle_version,
         fall=fall, gas=gas, environment=environment, overallRisk=overall,
         reasonCodes=reasons,

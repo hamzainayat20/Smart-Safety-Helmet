@@ -277,6 +277,10 @@ describe('Realtime Database authorization', () => {
       await assertFails(update(ref(database, 'helmets/helmetA/currentAssessment'), {
         overallRisk: 'safe',
       }));
+      await assertFails(getDatabaseValue(ref(database, 'assessmentJobs/helmetA/eventX')));
+      await assertFails(set(ref(database, 'assessmentJobs/helmetA/eventX'), {
+        status: 'completed',
+      }));
     }
   });
 

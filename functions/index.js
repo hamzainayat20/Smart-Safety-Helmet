@@ -4,7 +4,9 @@ import { getMessaging } from 'firebase-admin/messaging';
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onRequest } from 'firebase-functions/v2/https';
-import { defineSecret } from 'firebase-functions/params';
+import { onValueCreated } from 'firebase-functions/v2/database';
+import { defineSecret, defineString } from 'firebase-functions/params';
+import { GoogleAuth } from 'google-auth-library';
 
 import {
   AlertValidationError,
@@ -23,12 +25,36 @@ import {
   viewedTransition,
 } from './src/alert_logic.js';
 import { createTelemetryIngestionHandler } from './src/telemetry_ingestion.js';
+import {
+  createAssessmentEventHandler,
+  createAssessmentProcessor,
+} from './src/assessment_pipeline.js';
+import { createInferenceClient } from './src/inference_client.js';
 
 if (getApps().length === 0) initializeApp();
 
 const database = getDatabase();
 const messaging = getMessaging();
 const helmetDeviceSecrets = defineSecret('HELMET_DEVICE_SECRETS');
+const inferenceServiceUrl = defineString('INFERENCE_SERVICE_URL');
+const googleAuth = new GoogleAuth();
+
+async function privateInferenceAuthorization(audience) {
+  const client = await googleAuth.getIdTokenClient(audience);
+  const headers = await client.getRequestHeaders();
+  const value = headers?.get?.('authorization') ??
+    headers?.authorization ?? headers?.Authorization;
+  return value;
+}
+
+const inferenceClient = createInferenceClient({
+  endpoint: () => inferenceServiceUrl.value(),
+  authorizationHeaderProvider: privateInferenceAuthorization,
+});
+const assessmentProcessor = createAssessmentProcessor({
+  database,
+  inferenceClient,
+});
 
 export const ingestTelemetry = onRequest(
   {
@@ -42,6 +68,22 @@ export const ingestTelemetry = onRequest(
   createTelemetryIngestionHandler({
     database,
     secretRegistryValue: () => helmetDeviceSecrets.value(),
+  }),
+);
+
+export const assessTelemetry = onValueCreated(
+  {
+    ref: '/readings/{helmetId}/{eventId}',
+    region: 'us-central1',
+    timeoutSeconds: 30,
+    memory: '512MiB',
+    maxInstances: 10,
+    concurrency: 10,
+    retry: true,
+  },
+  createAssessmentEventHandler({
+    processor: assessmentProcessor,
+    logger,
   }),
 );
 
