@@ -97,6 +97,32 @@ abstract interface class ReadingRepository {
   );
 }
 
+abstract interface class AssessmentRepository {
+  Stream<Map<String, SafetyAssessment>> watchLatestAssessments(
+    UserProfile actor,
+  );
+
+  Stream<List<SafetyAssessment>> watchHelmetAssessments(
+    UserProfile actor,
+    String helmetId,
+  );
+}
+
+final class NoopAssessmentRepository implements AssessmentRepository {
+  const NoopAssessmentRepository();
+
+  @override
+  Stream<Map<String, SafetyAssessment>> watchLatestAssessments(
+    UserProfile actor,
+  ) => Stream.value(const {});
+
+  @override
+  Stream<List<SafetyAssessment>> watchHelmetAssessments(
+    UserProfile actor,
+    String helmetId,
+  ) => Stream.value(const []);
+}
+
 abstract interface class AlertRepository {
   Stream<List<SafetyAlert>> watchAuthorizedAlerts(UserProfile actor);
 

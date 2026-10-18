@@ -1,0 +1,16 @@
+{
+  "bundleVersion": "phase-a.1",
+  "sourceArchives": {
+    "mq7_mq135_gas_model.zip": "aa3017d73246a08cb9e40de774b604d304b7e3c01234bd5f6e7918e9ad5a25a8",
+    "sisfall_kfall_fall_model.zip": "ceca7fb7457c25ce2debcc9c24738847b15a383192bdd9c6b4899ae31643aca8"
+  },
+  "files": {
+    "fall/fall_model_config.json": "6db9f75430d223bd258e92684409bcd86b27c46c30a075d5b637ab5223d9f6f1",
+    "fall/fall_xgboost_50hz.json": "1b09c437ef098830686569f8ee53c81ef36140c4601d54a419e34b6d80d8e0eb",
+    "fall/feature_importance.csv": "1eb2a58f93bf5ed661fce2b77654eb9d120389f765ee89e273592a45f0e8b6fe",
+    "fall/threshold_results.csv": "fce781a68800d17ce40fa76cb567fd6ffaab15434b1fdbe8c19d20ad07395405",
+    "gas/grouped_evaluation_results.json": "c7ce4dc24891290ab1a66d709e1f87ea41252d945dfb491e57d6ae7773eafdd9",
+    "gas/mq7_mq135_grouped_model.json": "df7a5fe10100fbc5cf2ff2bffa9bfde657950b9666cc84a199cfe89a53d4db23",
+    "gas/mq7_mq135_model_config.json": "c0d1dfe66bb14b0c30bb7f1ec09789af4e819dd1f97e31ab05db8ba7fd14b76c"
+  }
+}

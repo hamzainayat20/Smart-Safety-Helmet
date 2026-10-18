@@ -14,9 +14,12 @@ helmet001 -> HTTPS ingestTelemetry -> authentication/validation
           -> existing Flutter RTDB listener
 ```
 
-The Cloud Function accepts only the schema `1.0` canonical client contract. It
+The Cloud Function accepts the backward-compatible schema `1.0` contract and
+the strict Phase A schema `2.0` model-input contract. It
 adds `serverReceivedAt`, `connectivity: online`, and `severity: unassessed` after
-validation. It creates no alerts and performs no threshold assessment.
+validation. Ingestion itself creates no alerts and performs no model inference;
+the private inference boundary described in the Phase A assessment contract
+owns that work.
 
 ## Request protocol
 

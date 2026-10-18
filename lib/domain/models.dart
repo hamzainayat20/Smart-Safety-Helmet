@@ -22,6 +22,20 @@ final class ModelValidationException implements FormatException {
 
 enum SafetySeverity { unassessed, safe, warning, critical }
 
+enum InferenceStatus {
+  pending,
+  completed,
+  unavailable,
+  outOfDistribution,
+  error,
+}
+
+enum GasClass { mixture, noGas, perfume, smoke, unknown }
+
+enum AssessmentRisk { unknown, safe, warning, critical }
+
+enum ComponentRisk { normal, warning, critical, unavailable }
+
 enum MonitoringState {
   loading,
   empty,
@@ -1257,5 +1271,475 @@ final class HelmetConfiguration {
     'gasWarmUpHours': gasWarmUpHours,
     'updatedAt': updatedAt.millisecondsSinceEpoch,
     'updatedBy': updatedBy,
+  };
+}
+
+final class FallPrediction {
+  const FallPrediction({
+    required this.status,
+    this.probability,
+    this.threshold,
+    this.modelVersion,
+    required this.inputValid,
+  });
+
+  final InferenceStatus status;
+  final double? probability;
+  final double? threshold;
+  final String? modelVersion;
+  final bool inputValid;
+
+  factory FallPrediction.fromJson(Map<String, dynamic> json) {
+    final status = _enumValue(
+      json,
+      'status',
+      InferenceStatus.values,
+      aliases: {
+        'evaluated': InferenceStatus.completed,
+        'out_of_distribution': InferenceStatus.outOfDistribution,
+      },
+    );
+    if (status == InferenceStatus.unavailable) {
+      return const FallPrediction(
+        status: InferenceStatus.unavailable,
+        inputValid: false,
+      );
+    }
+    if (status != InferenceStatus.completed) {
+      return FallPrediction(status: status, inputValid: false);
+    }
+    return FallPrediction(
+      status: status,
+      probability: _requiredNumber(json, 'probability', min: 0, max: 1),
+      threshold: _requiredNumber(json, 'threshold', min: 0, max: 1),
+      modelVersion: _requiredString(json, 'modelVersion'),
+      inputValid: true,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    if (status != InferenceStatus.completed) {
+      return const {'status': 'unavailable'};
+    }
+    if (probability == null || threshold == null || modelVersion == null) {
+      throw ModelValidationException(
+        'An evaluated fall prediction requires probability, threshold and modelVersion',
+      );
+    }
+    return {
+      'status': 'evaluated',
+      'probability': probability,
+      'threshold': threshold,
+      'modelVersion': modelVersion,
+    };
+  }
+}
+
+final class GasPrediction {
+  GasPrediction({
+    required this.status,
+    required this.gasClass,
+    this.confidence,
+    Map<GasClass, double> probabilities = const {},
+    this.modelVersion,
+    required this.inputValid,
+    required this.outOfDistribution,
+  }) : probabilities = Map.unmodifiable(probabilities) {
+    if (confidence != null &&
+        (!confidence!.isFinite || confidence! < 0 || confidence! > 1)) {
+      throw ModelValidationException('Gas confidence must be between 0 and 1');
+    }
+    if (probabilities.values.any(
+      (value) => !value.isFinite || value < 0 || value > 1,
+    )) {
+      throw ModelValidationException(
+        'Gas probabilities must be between 0 and 1',
+      );
+    }
+  }
+
+  final InferenceStatus status;
+  final GasClass gasClass;
+  final double? confidence;
+  final Map<GasClass, double> probabilities;
+  final String? modelVersion;
+  final bool inputValid;
+  final bool outOfDistribution;
+
+  static GasClass _parseClass(Object? raw) {
+    if (raw == null) return GasClass.unknown;
+    if (raw is! String) {
+      throw ModelValidationException('gasClass must be a string');
+    }
+    return switch (raw.trim().toLowerCase().replaceAll('_', '')) {
+      'mixture' => GasClass.mixture,
+      'nogas' => GasClass.noGas,
+      'perfume' => GasClass.perfume,
+      'smoke' => GasClass.smoke,
+      'unknown' => GasClass.unknown,
+      _ => throw ModelValidationException(
+        'gasClass has an unsupported value: $raw',
+      ),
+    };
+  }
+
+  factory GasPrediction.fromJson(Map<String, dynamic> json) {
+    final status = _enumValue(
+      json,
+      'status',
+      InferenceStatus.values,
+      aliases: {
+        'evaluated': InferenceStatus.completed,
+        'out_of_distribution': InferenceStatus.outOfDistribution,
+      },
+    );
+    if (status == InferenceStatus.unavailable) {
+      return GasPrediction(
+        status: status,
+        gasClass: GasClass.unknown,
+        inputValid: false,
+        outOfDistribution: false,
+      );
+    }
+    final rawProbabilities = json['probabilities'];
+    final probabilities = <GasClass, double>{};
+    if (rawProbabilities is! Map) {
+      throw ModelValidationException('probabilities must be an object', json);
+    }
+    for (final entry in rawProbabilities.entries) {
+      final value = entry.value;
+      if (value is! num || !value.isFinite) {
+        throw ModelValidationException(
+          'probabilities must contain finite numbers',
+          json,
+        );
+      }
+      probabilities[_parseClass(entry.key.toString())] = value.toDouble();
+    }
+    const expectedClasses = {
+      GasClass.mixture,
+      GasClass.noGas,
+      GasClass.perfume,
+      GasClass.smoke,
+    };
+    if (probabilities.keys.toSet().difference(expectedClasses).isNotEmpty ||
+        expectedClasses.difference(probabilities.keys.toSet()).isNotEmpty) {
+      throw ModelValidationException(
+        'An evaluated gas prediction requires all four class probabilities',
+        json,
+      );
+    }
+    final total = probabilities.values.fold<double>(
+      0,
+      (sum, value) => sum + value,
+    );
+    if ((total - 1).abs() > 0.001) {
+      throw ModelValidationException('Gas probabilities must sum to one', json);
+    }
+    final classValue =
+        json['classification'] ??
+        json['gasClass'] ??
+        json['predictedClass'] ??
+        json['class'];
+    final gasClass = _parseClass(classValue);
+    final confidence = _requiredNumber(json, 'confidence', min: 0, max: 1);
+    final modelVersion = _requiredString(json, 'modelVersion');
+    if (gasClass == GasClass.unknown ||
+        (probabilities[gasClass]! - confidence).abs() > 0.000001 ||
+        probabilities.values.any((value) => value > confidence)) {
+      throw ModelValidationException(
+        'Gas classification and confidence must match the highest probability',
+        json,
+      );
+    }
+    return GasPrediction(
+      status: status,
+      gasClass: gasClass,
+      confidence: confidence,
+      probabilities: probabilities,
+      modelVersion: modelVersion,
+      inputValid: status == InferenceStatus.completed,
+      outOfDistribution:
+          _optionalBool(json, 'outOfDistribution') ??
+          json['status'] == 'out_of_distribution' ||
+              json['status'] == 'outOfDistribution',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    if (status != InferenceStatus.completed) {
+      return const {'status': 'unavailable'};
+    }
+    if (gasClass == GasClass.unknown ||
+        confidence == null ||
+        modelVersion == null) {
+      throw ModelValidationException(
+        'An evaluated gas prediction requires class, confidence and modelVersion',
+      );
+    }
+    String className(GasClass value) => switch (value) {
+      GasClass.mixture => 'Mixture',
+      GasClass.noGas => 'NoGas',
+      GasClass.perfume => 'Perfume',
+      GasClass.smoke => 'Smoke',
+      GasClass.unknown => throw ModelValidationException(
+        'Unknown is not a canonical gas class',
+      ),
+    };
+    return {
+      'status': 'evaluated',
+      'classification': className(gasClass),
+      'confidence': confidence,
+      'probabilities': {
+        for (final entry in probabilities.entries)
+          if (entry.key != GasClass.unknown) className(entry.key): entry.value,
+      },
+      'modelVersion': modelVersion,
+      'outOfDistribution': outOfDistribution,
+    };
+  }
+}
+
+final class SafetyAssessment {
+  SafetyAssessment({
+    required this.schemaVersion,
+    required this.assessmentId,
+    required this.helmetId,
+    required this.sourceEventId,
+    required this.sourceSchemaVersion,
+    required DateTime deviceTimestamp,
+    required DateTime sourceServerReceivedAt,
+    required DateTime assessedAt,
+    required this.status,
+    required this.overallRisk,
+    required this.fall,
+    required this.gas,
+    required this.environmentStatus,
+    required this.temperatureRisk,
+    required this.humidityRisk,
+    required this.heatIndexRisk,
+    List<String> reasonCodes = const [],
+    List<String> recommendationCodes = const [],
+    this.modelBundleVersion,
+  }) : deviceTimestamp = deviceTimestamp.toUtc(),
+       sourceServerReceivedAt = sourceServerReceivedAt.toUtc(),
+       assessedAt = assessedAt.toUtc(),
+       reasonCodes = List.unmodifiable(reasonCodes),
+       recommendationCodes = List.unmodifiable(recommendationCodes) {
+    if (schemaVersion.trim().isEmpty ||
+        assessmentId.trim().isEmpty ||
+        helmetId.trim().isEmpty ||
+        sourceEventId.trim().isEmpty) {
+      throw ModelValidationException('Assessment identifiers are required');
+    }
+    if (assessmentId != sourceEventId) {
+      throw ModelValidationException(
+        'assessmentId must equal the source eventId',
+      );
+    }
+  }
+
+  static const Map<String, String> approvedRecommendations = {
+    'CHECK_WORKER_IMMEDIATELY':
+        'Check the worker immediately and confirm they are responsive.',
+    'FOLLOW_SITE_EMERGENCY_PROTOCOL':
+        'Follow the approved site emergency protocol.',
+    'MOVE_TO_FRESH_AIR': 'Move to fresh air when it is safe to do so.',
+    'INVESTIGATE_GAS_SOURCE':
+        'Have authorized personnel investigate the possible gas source.',
+    'VENTILATE_AREA_IF_SAFE':
+        'Ventilate the area only when site procedures allow it.',
+    'MONITOR_ENVIRONMENT': 'Continue monitoring the environment.',
+    'VERIFY_SENSORS':
+        'Inspect the helmet sensors before relying on this assessment.',
+    'ALLOW_GAS_SENSOR_WARMUP':
+        'Allow the gas sensors to warm up before using their result.',
+    'HYDRATE_AND_COOL_DOWN':
+        'Hydrate and move to a cooler area according to site procedures.',
+    'MOVE_TO_SAFE_TEMPERATURE':
+        'Move away from the temperature hazard to a designated safe area.',
+    'NO_IMMEDIATE_ACTION':
+        'No immediate action is indicated; continue normal monitoring.',
+  };
+
+  final String schemaVersion;
+  final String assessmentId;
+  final String helmetId;
+  final String sourceEventId;
+  final String sourceSchemaVersion;
+  final DateTime deviceTimestamp;
+  final DateTime sourceServerReceivedAt;
+  final DateTime assessedAt;
+  final InferenceStatus status;
+  final AssessmentRisk overallRisk;
+  final FallPrediction fall;
+  final GasPrediction gas;
+  final InferenceStatus environmentStatus;
+  final ComponentRisk temperatureRisk;
+  final ComponentRisk humidityRisk;
+  final ComponentRisk heatIndexRisk;
+  final List<String> reasonCodes;
+  final List<String> recommendationCodes;
+  final String? modelBundleVersion;
+
+  List<String> get recommendations => List.unmodifiable(
+    recommendationCodes
+        .map((code) => approvedRecommendations[code])
+        .whereType<String>(),
+  );
+
+  bool get hasUsableInference =>
+      status == InferenceStatus.completed &&
+      fall.status == InferenceStatus.completed &&
+      fall.inputValid &&
+      gas.status == InferenceStatus.completed &&
+      gas.inputValid &&
+      !gas.outOfDistribution &&
+      environmentStatus == InferenceStatus.completed;
+
+  AssessmentRisk get displayRisk =>
+      overallRisk == AssessmentRisk.safe && !hasUsableInference
+      ? AssessmentRisk.unknown
+      : overallRisk;
+
+  bool matchesReading(SensorReading reading) =>
+      helmetId == reading.helmetId &&
+      sourceEventId == reading.eventId &&
+      !assessedAt.isBefore(
+        reading.serverReceivedAt.subtract(const Duration(seconds: 5)),
+      );
+
+  factory SafetyAssessment.fromJson(Map<String, dynamic> json) {
+    final fall = json['fall'];
+    final gas = json['gas'];
+    if (fall is! Map || gas is! Map) {
+      throw ModelValidationException(
+        'Assessment fall and gas predictions are required',
+        json,
+      );
+    }
+    final fallPrediction = FallPrediction.fromJson({
+      for (final entry in fall.entries) entry.key.toString(): entry.value,
+    });
+    final gasPrediction = GasPrediction.fromJson({
+      for (final entry in gas.entries) entry.key.toString(): entry.value,
+    });
+    final environment = json['environment'];
+    final environmentJson = environment is Map
+        ? {
+            for (final entry in environment.entries)
+              entry.key.toString(): entry.value,
+          }
+        : const <String, dynamic>{'status': 'unavailable'};
+    final environmentStatus = _enumValue(
+      environmentJson,
+      'status',
+      InferenceStatus.values,
+      aliases: {
+        'evaluated': InferenceStatus.completed,
+        'out_of_distribution': InferenceStatus.outOfDistribution,
+      },
+    );
+    final inferredStatus =
+        <InferenceStatus>[
+          fallPrediction.status,
+          gasPrediction.status,
+          environmentStatus,
+        ].contains(InferenceStatus.error)
+        ? InferenceStatus.error
+        : <InferenceStatus>[
+            fallPrediction.status,
+            gasPrediction.status,
+            environmentStatus,
+          ].contains(InferenceStatus.pending)
+        ? InferenceStatus.pending
+        : <InferenceStatus>[
+            fallPrediction.status,
+            gasPrediction.status,
+            environmentStatus,
+          ].contains(InferenceStatus.outOfDistribution)
+        ? InferenceStatus.outOfDistribution
+        : fallPrediction.status == InferenceStatus.completed &&
+              gasPrediction.status == InferenceStatus.completed
+        ? InferenceStatus.completed
+        : InferenceStatus.unavailable;
+    return SafetyAssessment(
+      schemaVersion: _requiredString(json, 'schemaVersion'),
+      assessmentId: _requiredString(json, 'assessmentId'),
+      helmetId: _requiredString(json, 'helmetId'),
+      sourceEventId: _requiredString(
+        json,
+        json.containsKey('sourceEventId') ? 'sourceEventId' : 'eventId',
+      ),
+      sourceSchemaVersion: _requiredString(json, 'sourceSchemaVersion'),
+      deviceTimestamp: _requiredTimestamp(json, 'deviceTimestamp'),
+      sourceServerReceivedAt: _requiredTimestamp(
+        json,
+        'sourceServerReceivedAt',
+      ),
+      assessedAt: _requiredTimestamp(json, 'assessedAt'),
+      status: json['status'] == null
+          ? inferredStatus
+          : _enumValue(
+              json,
+              'status',
+              InferenceStatus.values,
+              aliases: {
+                'out_of_distribution': InferenceStatus.outOfDistribution,
+              },
+            ),
+      overallRisk: _enumValue(
+        json,
+        'overallRisk',
+        AssessmentRisk.values,
+        aliases: {'unassessed': AssessmentRisk.unknown},
+      ),
+      fall: fallPrediction,
+      gas: gasPrediction,
+      environmentStatus: environmentStatus,
+      temperatureRisk: _enumValue(
+        environmentJson,
+        'temperatureRisk',
+        ComponentRisk.values,
+      ),
+      humidityRisk: _enumValue(
+        environmentJson,
+        'humidityRisk',
+        ComponentRisk.values,
+      ),
+      heatIndexRisk: _enumValue(
+        environmentJson,
+        'heatIndexRisk',
+        ComponentRisk.values,
+      ),
+      reasonCodes: _stringList(json, 'reasonCodes'),
+      recommendationCodes: _stringList(json, 'recommendationCodes'),
+      modelBundleVersion: _optionalString(json, 'modelBundleVersion'),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'schemaVersion': schemaVersion,
+    'assessmentId': assessmentId,
+    'helmetId': helmetId,
+    'eventId': sourceEventId,
+    'sourceSchemaVersion': sourceSchemaVersion,
+    'deviceTimestamp': deviceTimestamp.millisecondsSinceEpoch,
+    'sourceServerReceivedAt': sourceServerReceivedAt.millisecondsSinceEpoch,
+    'assessedAt': assessedAt.millisecondsSinceEpoch,
+    'overallRisk': overallRisk.name,
+    'fall': fall.toJson(),
+    'gas': gas.toJson(),
+    'environment': {
+      'status': environmentStatus == InferenceStatus.completed
+          ? 'evaluated'
+          : 'unavailable',
+      'temperatureRisk': temperatureRisk.name,
+      'humidityRisk': humidityRisk.name,
+      'heatIndexRisk': heatIndexRisk.name,
+    },
+    'reasonCodes': reasonCodes,
+    'recommendationCodes': recommendationCodes,
+    if (modelBundleVersion != null) 'modelBundleVersion': modelBundleVersion,
   };
 }

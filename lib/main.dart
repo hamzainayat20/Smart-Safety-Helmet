@@ -50,6 +50,7 @@ void main() async {
           sites: RtdbSiteRepository(),
           helmets: RtdbHelmetRepository(),
           readings: RtdbReadingRepository(),
+          assessments: RtdbAssessmentRepository(),
           alerts: RtdbAlertRepository(functions: functions),
           configuration: RtdbConfigurationRepository(),
           notifications: notifications,

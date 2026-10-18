@@ -1,0 +1,55 @@
+{
+  "modelName": "MQ7_MQ135_Grouped_Gas_Classifier",
+  "modelType": "XGBoost multiclass classifier",
+  "modelVersion": "1.0",
+  "features": [
+    "MQ7",
+    "MQ135"
+  ],
+  "featureOrder": [
+    "MQ7",
+    "MQ135"
+  ],
+  "target": "Gas",
+  "classes": [
+    "Mixture",
+    "NoGas",
+    "Perfume",
+    "Smoke"
+  ],
+  "classMapping": {
+    "0": "Mixture",
+    "1": "NoGas",
+    "2": "Perfume",
+    "3": "Smoke"
+  },
+  "evaluationMethod": "Grouped holdout split",
+  "groupBlockSize": 100,
+  "accuracy": 0.8170731707317073,
+  "macroF1": 0.8257659078604065,
+  "trainingRows": 4532,
+  "sensorRanges": {
+    "MQ7": {
+      "minimum": 361.0,
+      "maximum": 796.0
+    },
+    "MQ135": {
+      "minimum": 275.0,
+      "maximum": 589.0
+    }
+  },
+  "importantNotes": [
+    "Input feature order must always be MQ7 followed by MQ135.",
+    "Inputs are dataset sensor readings, not calibrated ppm values.",
+    "The model predicts gas-condition classes.",
+    "The model does not calculate calibrated carbon-monoxide concentration.",
+    "Readings outside the training ranges should be treated as out-of-distribution.",
+    "The model requires validation using the final physical MQ7 and MQ135 sensors."
+  ],
+  "limitations": [
+    "Perfume is sometimes confused with NoGas.",
+    "The dataset hardware may differ from the final prototype hardware.",
+    "This model must not be treated as a certified industrial safety system.",
+    "Rule-based local alarms should remain available independently of the model."
+  ]
+}

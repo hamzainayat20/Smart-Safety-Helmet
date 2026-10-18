@@ -1,0 +1,137 @@
+{
+  "modelName": "SisFall_KFall_XGBoost_Fall_Detector",
+  "modelVersion": "2.0",
+  "modelType": "XGBoost binary classifier",
+  "classes": {
+    "0": "Non-fall",
+    "1": "Fall"
+  },
+  "datasets": [
+    "SisFall",
+    "KFall"
+  ],
+  "samplingRateHz": 50,
+  "windowSeconds": 2,
+  "windowSizeSamples": 100,
+  "windowStepSamples": 25,
+  "features": [
+    "acc_mean",
+    "acc_std",
+    "acc_min",
+    "acc_max",
+    "gyro_mean",
+    "gyro_std",
+    "gyro_max",
+    "jerk_mean",
+    "jerk_max"
+  ],
+  "featureOrder": [
+    "acc_mean",
+    "acc_std",
+    "acc_min",
+    "acc_max",
+    "gyro_mean",
+    "gyro_std",
+    "gyro_max",
+    "jerk_mean",
+    "jerk_max"
+  ],
+  "decisionThreshold": 0.46,
+  "evaluationMethod": "Five-fold stratified group cross-validation by subject",
+  "subjects": 70,
+  "totalWindows": 28636,
+  "scalePosWeight": 1.3052648526807278,
+  "conversions": {
+    "SisFallAcceleration": "ADXL345 counts divided by 256",
+    "SisFallGyroscope": "ITG3200 counts divided by 14.375",
+    "SisFallSampling": "200 Hz resampled to 50 Hz",
+    "KFallAcceleration": "Already measured in g",
+    "KFallGyroscope": "Already measured in degrees/second",
+    "KFallSampling": "100 Hz resampled to 50 Hz"
+  },
+  "crossValidation": {
+    "accuracy": 0.9836220142477999,
+    "macroF1": 0.9833376420270817,
+    "fallPrecision": 0.9791549747454502,
+    "fallRecall": 0.9831750120753502,
+    "rocAuc": 0.9979065098296755,
+    "confusionMatrix": [
+      [
+        15954,
+        260
+      ],
+      [
+        209,
+        12213
+      ]
+    ],
+    "foldResults": [
+      {
+        "fold": 1,
+        "trainSubjects": 56,
+        "testSubjects": 14,
+        "accuracy": 0.9899732620320856,
+        "macroF1": 0.9898601569235608,
+        "fallRecall": 0.98989898989899
+      },
+      {
+        "fold": 2,
+        "trainSubjects": 56,
+        "testSubjects": 14,
+        "accuracy": 0.9848535286284953,
+        "macroF1": 0.9846724617885987,
+        "fallRecall": 0.9868766404199475
+      },
+      {
+        "fold": 3,
+        "trainSubjects": 56,
+        "testSubjects": 14,
+        "accuracy": 0.9782454899186417,
+        "macroF1": 0.9777884985289842,
+        "fallRecall": 0.9735973597359736
+      },
+      {
+        "fold": 4,
+        "trainSubjects": 56,
+        "testSubjects": 14,
+        "accuracy": 0.9870414002019522,
+        "macroF1": 0.9869330817588724,
+        "fallRecall": 0.9936543486375513
+      },
+      {
+        "fold": 5,
+        "trainSubjects": 56,
+        "testSubjects": 14,
+        "accuracy": 0.9762282091917591,
+        "macroF1": 0.974960118731101,
+        "fallRecall": 0.9580596260737746
+      }
+    ],
+    "datasetResults": {
+      "KFall": {
+        "samples": 15172,
+        "accuracy": 0.9878064856314263,
+        "macroF1": 0.9877514503865163,
+        "fallPrecision": 0.9809015587698356,
+        "fallRecall": 0.9930338356553882,
+        "rocAuc": 0.9990587794158947
+      },
+      "SisFall": {
+        "samples": 13464,
+        "accuracy": 0.9789067142008319,
+        "macroF1": 0.9780064686856806,
+        "fallPrecision": 0.976831091180867,
+        "fallRecall": 0.9703043801039347,
+        "rocAuc": 0.9972735120659599
+      }
+    }
+  },
+  "limitations": [
+    "Training sensors were worn at locations different from a helmet.",
+    "The final helmet placement requires separate validation.",
+    "SisFall impact positions were estimated from acceleration peaks.",
+    "Seventeen malformed SisFall files were excluded.",
+    "The model is not a certified safety system.",
+    "Local deterministic fall detection should remain available."
+  ]
+}

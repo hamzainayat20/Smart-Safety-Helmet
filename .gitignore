@@ -48,6 +48,11 @@ functions/.secret.local
 .venv/
 **/__pycache__/
 *.py[cod]
+.model_inspect/
+.pip-cache/
+.npm-cache/
+.tool-appdata/
+.tool-config/
 emulator-test.tap
 firebase.emulator.local.json
 

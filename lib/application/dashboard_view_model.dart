@@ -21,6 +21,7 @@ final class DashboardViewModel extends ChangeNotifier {
     'sites',
     'helmets',
     'readings',
+    'assessments',
     'alerts',
     'connection',
   };
@@ -33,6 +34,7 @@ final class DashboardViewModel extends ChangeNotifier {
   List<Site> _sites = const [];
   List<Helmet> _helmets = const [];
   Map<String, SensorReading> _readings = const {};
+  Map<String, SafetyAssessment> _assessments = const {};
   List<SafetyAlert> _alerts = const [];
   Map<String, UserProfile> _workers = const {};
   final List<StreamSubscription<Object?>> _subscriptions = [];
@@ -47,6 +49,7 @@ final class DashboardViewModel extends ChangeNotifier {
   List<Site> get sites => _sites;
   List<Helmet> get helmets => _helmets;
   Map<String, SensorReading> get readings => _readings;
+  Map<String, SafetyAssessment> get assessments => _assessments;
   List<SafetyAlert> get alerts => _alerts;
   bool? get backendConnected => _backendConnected;
   String? get errorMessage => _repositoryError?.message;
@@ -105,6 +108,14 @@ final class DashboardViewModel extends ChangeNotifier {
       }, onError: (Object error) => _handleError('readings', error)),
     );
     _subscriptions.add(
+      dependencies.assessments.watchLatestAssessments(_profile).listen((
+        assessments,
+      ) {
+        _assessments = assessments;
+        _markLoaded('assessments');
+      }, onError: (Object error) => _handleError('assessments', error)),
+    );
+    _subscriptions.add(
       dependencies.alerts.watchAuthorizedAlerts(_profile).listen((alerts) {
         _alerts = alerts;
         _markLoaded('alerts');
@@ -139,6 +150,7 @@ final class DashboardViewModel extends ChangeNotifier {
     _sites = const [];
     _helmets = const [];
     _readings = const {};
+    _assessments = const {};
     _alerts = const [];
     _workers = const {};
     _loadedSources.clear();
@@ -185,6 +197,23 @@ final class DashboardViewModel extends ChangeNotifier {
       helmet.siteId;
 
   SensorReading? readingFor(String helmetId) => _readings[helmetId];
+
+  SafetyAssessment? assessmentFor(String helmetId) {
+    final reading = readingFor(helmetId);
+    final assessment = _assessments[helmetId];
+    if (reading == null ||
+        assessment == null ||
+        !assessment.matchesReading(reading)) {
+      return null;
+    }
+    if (assessment.sourceServerReceivedAt
+            .difference(reading.serverReceivedAt)
+            .abs() >
+        const Duration(seconds: 5)) {
+      return null;
+    }
+    return assessment;
+  }
 
   List<Helmet> get activeHelmets =>
       List.unmodifiable(_helmets.where((helmet) => helmet.active));

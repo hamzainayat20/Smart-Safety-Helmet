@@ -1,0 +1,7 @@
+{
+  "version": "prototype-defaults.1",
+  "approvedForProduction": false,
+  "temperatureC": {"warningAt": 35.0, "criticalAt": 40.0},
+  "humidityPct": {"warningAt": 85.0, "criticalAt": 95.0},
+  "heatIndexC": {"warningAt": 41.0, "criticalAt": 54.0}
+}

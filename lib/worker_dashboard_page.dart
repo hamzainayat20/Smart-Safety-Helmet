@@ -4,6 +4,7 @@ import 'application/dashboard_view_model.dart';
 import 'domain/models.dart';
 import 'presentation/formatters.dart';
 import 'presentation/monitoring_state.dart';
+import 'presentation/safety_assessment_card.dart';
 
 class WorkerDashboardPage extends StatelessWidget {
   const WorkerDashboardPage({
@@ -123,6 +124,14 @@ class WorkerDashboardPage extends StatelessWidget {
                             ),
                           ),
                           if (helmet != null) ...[
+                            const SizedBox(height: 20),
+                            SafetyAssessmentCard(
+                              reading: reading,
+                              assessment: viewModel.assessmentFor(
+                                helmet.helmetId,
+                              ),
+                              compact: true,
+                            ),
                             const SizedBox(height: 20),
                             Text(
                               'Your Helmet Status • ${helmet.helmetId}',

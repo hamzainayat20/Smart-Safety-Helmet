@@ -1,0 +1,10 @@
+feature,importance
+acc_max,0.5812959
+acc_std,0.14061296
+gyro_std,0.09848038
+gyro_max,0.081545115
+jerk_mean,0.040420122
+gyro_mean,0.019450396
+jerk_max,0.013538049
+acc_mean,0.013191362
+acc_min,0.011465676

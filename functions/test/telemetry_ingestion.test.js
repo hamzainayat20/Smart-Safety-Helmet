@@ -40,6 +40,45 @@ function validPayload(overrides = {}) {
   };
 }
 
+function validV2Payload(overrides = {}) {
+  return {
+    schemaVersion: '2.0',
+    eventId: 'helmet001_window_1',
+    helmetId: 'helmet001',
+    deviceTimestamp: initialNow,
+    firmwareVersion: '0.3.0-staging',
+    temperatureC: 25,
+    humidityPct: 50,
+    heatIndexC: 25.5,
+    accelXG: 0,
+    accelYG: 0,
+    accelZG: 1,
+    gyroXDegreesPerSecond: 0,
+    gyroYDegreesPerSecond: 0,
+    gyroZDegreesPerSecond: 0,
+    mq7Raw: 512,
+    mq135Raw: 420,
+    mq7WarmUp: false,
+    mq135WarmUp: false,
+    fallFeatures: {
+      acc_mean: 1,
+      acc_std: 0.2,
+      acc_min: 0.4,
+      acc_max: 2.3,
+      gyro_mean: 8,
+      gyro_std: 2,
+      gyro_max: 20,
+      jerk_mean: 1.5,
+      jerk_max: 9,
+    },
+    samplingRateHz: 50,
+    windowSamples: 100,
+    windowEndTimestamp: initialNow,
+    sensorFaults: ['gpsUnavailable', 'batteryUnavailable'],
+    ...overrides,
+  };
+}
+
 function getAt(root, path) {
   return path.split('/').filter(Boolean).reduce((value, part) => value?.[part], root);
 }
@@ -165,6 +204,19 @@ test('valid telemetry writes current, history and a stable dedupe timestamp', as
     status: 'stored',
     firstReceivedAt: initialNow,
   });
+});
+
+test('schema 2.0 telemetry reaches current and history without reinterpretation', async () => {
+  const database = new FakeDatabase();
+  const response = await invoke(database, validV2Payload());
+  assert.equal(response.statusCode, 202);
+  assert.equal(getAt(database.data, 'helmets/helmet001/current/schemaVersion'), '2.0');
+  assert.equal(getAt(database.data, 'helmets/helmet001/current/mq7Raw'), 512);
+  assert.equal(getAt(database.data, 'helmets/helmet001/current/mq135Raw'), 420);
+  assert.equal(
+    getAt(database.data, 'readings/helmet001/helmet001_window_1/fallFeatures/acc_max'),
+    2.3,
+  );
 });
 
 test('duplicate repair reuses serverReceivedAt and restores missing projections', async () => {

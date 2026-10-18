@@ -84,10 +84,18 @@ beforeEach(async () => {
         helmetA: {
           meta: { siteId: 'siteA', assignedWorkerId: 'worker1', active: true },
           current: { helmetId: 'helmetA', serverReceivedAt: 1000 },
+          currentAssessment: {
+            assessmentId: 'eventA', eventId: 'eventA', helmetId: 'helmetA',
+            deviceTimestamp: 900, assessedAt: 1100, overallRisk: 'safe',
+          },
         },
         helmetB: {
           meta: { siteId: 'siteB', assignedWorkerId: 'worker2', active: true },
           current: { helmetId: 'helmetB', serverReceivedAt: 1000 },
+          currentAssessment: {
+            assessmentId: 'eventB', eventId: 'eventB', helmetId: 'helmetB',
+            deviceTimestamp: 900, assessedAt: 1100, overallRisk: 'warning',
+          },
         },
       },
       readings: {
@@ -96,6 +104,20 @@ beforeEach(async () => {
         },
         helmetB: {
           eventB: { eventId: 'eventB', helmetId: 'helmetB', serverReceivedAt: 1000 },
+        },
+      },
+      assessments: {
+        helmetA: {
+          eventA: {
+            assessmentId: 'eventA', eventId: 'eventA', helmetId: 'helmetA',
+            deviceTimestamp: 900, assessedAt: 1100, overallRisk: 'safe',
+          },
+        },
+        helmetB: {
+          eventB: {
+            assessmentId: 'eventB', eventId: 'eventB', helmetId: 'helmetB',
+            deviceTimestamp: 900, assessedAt: 1100, overallRisk: 'warning',
+          },
         },
       },
       alerts: {
@@ -173,9 +195,13 @@ describe('Realtime Database authorization', () => {
     await assertFails(getDatabaseValue(ref(database, 'users/worker2')));
     await assertSucceeds(getDatabaseValue(ref(database, 'helmets/helmetA/meta')));
     await assertSucceeds(getDatabaseValue(ref(database, 'helmets/helmetA/current')));
+    await assertSucceeds(getDatabaseValue(ref(database, 'helmets/helmetA/currentAssessment')));
     await assertFails(getDatabaseValue(ref(database, 'helmets/helmetB/meta')));
     await assertFails(getDatabaseValue(ref(database, 'helmets/helmetB/current')));
+    await assertFails(getDatabaseValue(ref(database, 'helmets/helmetB/currentAssessment')));
     await assertSucceeds(getDatabaseValue(ref(database, 'readings/helmetA')));
+    await assertSucceeds(getDatabaseValue(ref(database, 'assessments/helmetA')));
+    await assertFails(getDatabaseValue(ref(database, 'assessments/helmetB')));
     await assertSucceeds(getDatabaseValue(ref(database, 'alerts/alertA')));
     await assertFails(getDatabaseValue(ref(database, 'alerts/alertB')));
     await assertSucceeds(getDatabaseValue(ref(database, 'config/helmets/helmetA')));
@@ -187,7 +213,11 @@ describe('Realtime Database authorization', () => {
     await assertSucceeds(getDatabaseValue(ref(database, 'sites/siteA')));
     await assertFails(getDatabaseValue(ref(database, 'sites/siteB')));
     await assertSucceeds(getDatabaseValue(ref(database, 'helmets/helmetA/meta')));
+    await assertSucceeds(getDatabaseValue(ref(database, 'helmets/helmetA/currentAssessment')));
+    await assertSucceeds(getDatabaseValue(ref(database, 'assessments/helmetA')));
     await assertFails(getDatabaseValue(ref(database, 'helmets/helmetB/meta')));
+    await assertFails(getDatabaseValue(ref(database, 'helmets/helmetB/currentAssessment')));
+    await assertFails(getDatabaseValue(ref(database, 'assessments/helmetB')));
     await assertSucceeds(getDatabaseValue(ref(database, 'users/worker1')));
     await assertFails(getDatabaseValue(ref(database, 'users/worker2')));
   });
@@ -196,6 +226,8 @@ describe('Realtime Database authorization', () => {
     const database = environment.authenticatedContext('administrator1', verified('administrator')).database();
     await assertSucceeds(getDatabaseValue(ref(database, 'sites/siteB')));
     await assertSucceeds(getDatabaseValue(ref(database, 'helmets/helmetB/current')));
+    await assertSucceeds(getDatabaseValue(ref(database, 'helmets/helmetB/currentAssessment')));
+    await assertSucceeds(getDatabaseValue(ref(database, 'assessments/helmetB')));
     await assertSucceeds(getDatabaseValue(ref(database, 'users/worker2')));
     await assertFails(set(ref(database, 'users/worker2/role'), 'administrator'));
   });
@@ -230,6 +262,22 @@ describe('Realtime Database authorization', () => {
       status: 'acknowledged', acknowledgedBy: 'supervisor1', acknowledgedAt: 1001,
     }));
     await assertFails(update(ref(database, 'alerts/alertA'), { sensorValue: 10 }));
+  });
+
+  test('assessment history and current projections are backend-only writes', async () => {
+    for (const [uid, claims] of [
+      ['worker1', verified('worker')],
+      ['supervisor1', verified('supervisor')],
+      ['administrator1', verified('administrator')],
+    ]) {
+      const database = environment.authenticatedContext(uid, claims).database();
+      await assertFails(set(ref(database, 'assessments/helmetA/eventX'), {
+        assessmentId: 'eventX', eventId: 'eventX', helmetId: 'helmetA',
+      }));
+      await assertFails(update(ref(database, 'helmets/helmetA/currentAssessment'), {
+        overallRisk: 'safe',
+      }));
+    }
   });
 
   test('FCM tokens and dedupe markers are inaccessible to every client role', async () => {

@@ -27,6 +27,7 @@ final class AppDependencies {
     required this.sites,
     required this.helmets,
     required this.readings,
+    this.assessments = const NoopAssessmentRepository(),
     required this.alerts,
     required this.configuration,
     required this.dataSourceKind,
@@ -39,6 +40,7 @@ final class AppDependencies {
   final SiteRepository sites;
   final HelmetRepository helmets;
   final ReadingRepository readings;
+  final AssessmentRepository assessments;
   final AlertRepository alerts;
   final ConfigurationRepository configuration;
   final NotificationRepository notifications;
@@ -66,6 +68,7 @@ final class AppDependencies {
       sites: MockSiteRepository(data),
       helmets: MockHelmetRepository(data),
       readings: MockReadingRepository(data, backendConnected: backendConnected),
+      assessments: MockAssessmentRepository(data),
       alerts: MockAlertRepository(data),
       configuration: MockConfigurationRepository(data),
       dataSourceKind: DataSourceKind.deterministicMock,

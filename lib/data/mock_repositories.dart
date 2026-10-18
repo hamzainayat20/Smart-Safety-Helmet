@@ -10,6 +10,7 @@ final class MockDataSet {
     required this.sites,
     required this.helmets,
     required this.readings,
+    required this.assessments,
     required this.alerts,
     required this.configurations,
   });
@@ -18,6 +19,7 @@ final class MockDataSet {
   final Map<String, Site> sites;
   final Map<String, Helmet> helmets;
   final Map<String, SensorReading> readings;
+  final Map<String, SafetyAssessment> assessments;
   final Map<String, SafetyAlert> alerts;
   final Map<String, HelmetConfiguration> configurations;
 
@@ -399,11 +401,63 @@ final class MockDataSet {
       updatedBy: 'system-demo',
     );
 
+    final assessments = <String, SafetyAssessment>{
+      for (final entry in readings.entries)
+        entry.key: SafetyAssessment(
+          schemaVersion: '1.0',
+          assessmentId: entry.value.eventId,
+          helmetId: entry.key,
+          sourceEventId: entry.value.eventId,
+          sourceSchemaVersion: entry.value.schemaVersion,
+          deviceTimestamp: entry.value.deviceTimestamp,
+          sourceServerReceivedAt: entry.value.serverReceivedAt,
+          assessedAt: entry.value.serverReceivedAt.add(
+            const Duration(milliseconds: 500),
+          ),
+          status: InferenceStatus.completed,
+          overallRisk: switch (entry.value.severity) {
+            SafetySeverity.safe => AssessmentRisk.safe,
+            SafetySeverity.warning => AssessmentRisk.warning,
+            SafetySeverity.critical => AssessmentRisk.critical,
+            SafetySeverity.unassessed => AssessmentRisk.unknown,
+          },
+          fall: const FallPrediction(
+            status: InferenceStatus.completed,
+            probability: 0.04,
+            threshold: 0.46,
+            modelVersion: 'sisfall-kfall-demo',
+            inputValid: true,
+          ),
+          gas: GasPrediction(
+            status: entry.value.gasWarmUp
+                ? InferenceStatus.unavailable
+                : InferenceStatus.completed,
+            gasClass: entry.value.gasWarmUp ? GasClass.unknown : GasClass.noGas,
+            confidence: entry.value.gasWarmUp ? null : 0.91,
+            modelVersion: 'mq7-mq135-demo',
+            inputValid: !entry.value.gasWarmUp,
+            outOfDistribution: false,
+          ),
+          environmentStatus: InferenceStatus.completed,
+          temperatureRisk: ComponentRisk.normal,
+          humidityRisk: ComponentRisk.normal,
+          heatIndexRisk: ComponentRisk.normal,
+          reasonCodes: entry.value.gasWarmUp
+              ? const ['GAS_SENSOR_WARMING']
+              : const ['GAS_NO_GAS'],
+          recommendationCodes: entry.value.gasWarmUp
+              ? const ['ALLOW_GAS_SENSOR_WARMUP']
+              : const ['NO_IMMEDIATE_ACTION'],
+          modelBundleVersion: 'phase-a-demo',
+        ),
+    };
+
     return MockDataSet._(
       users: users,
       sites: sites,
       helmets: helmets,
       readings: readings,
+      assessments: assessments,
       alerts: alerts,
       configurations: {for (final id in helmets.keys) id: configuration(id)},
     );
@@ -713,6 +767,44 @@ final class MockReadingRepository implements ReadingRepository {
         data.readings.entries.where((entry) => allowed.contains(entry.key)),
       ),
     );
+  }
+}
+
+final class MockAssessmentRepository implements AssessmentRepository {
+  MockAssessmentRepository(this.data);
+
+  final MockDataSet data;
+
+  Set<String> _allowedIds(UserProfile actor) => data.helmets.values
+      .where((helmet) => userCanAccessHelmet(actor, helmet))
+      .map((helmet) => helmet.helmetId)
+      .toSet();
+
+  @override
+  Stream<Map<String, SafetyAssessment>> watchLatestAssessments(
+    UserProfile actor,
+  ) async* {
+    final allowed = _allowedIds(actor);
+    yield Map.unmodifiable(
+      Map.fromEntries(
+        data.assessments.entries.where((entry) => allowed.contains(entry.key)),
+      ),
+    );
+  }
+
+  @override
+  Stream<List<SafetyAssessment>> watchHelmetAssessments(
+    UserProfile actor,
+    String helmetId,
+  ) async* {
+    if (!_allowedIds(actor).contains(helmetId)) {
+      throw const RepositoryAccessException(
+        'FORBIDDEN_SCOPE',
+        'Helmet assessments are outside the assigned scope.',
+      );
+    }
+    final assessment = data.assessments[helmetId];
+    yield assessment == null ? const [] : [assessment];
   }
 }
 

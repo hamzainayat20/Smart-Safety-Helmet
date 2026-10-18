@@ -4,6 +4,7 @@ import 'application/dashboard_view_model.dart';
 import 'domain/models.dart';
 import 'presentation/formatters.dart';
 import 'presentation/monitoring_state.dart';
+import 'presentation/safety_assessment_card.dart';
 
 class SensorDetailScreen extends StatelessWidget {
   const SensorDetailScreen({
@@ -70,6 +71,11 @@ class SensorDetailScreen extends StatelessWidget {
                           padding: const EdgeInsets.all(20),
                           child: Column(
                             children: [
+                              SafetyAssessmentCard(
+                                reading: reading,
+                                assessment: viewModel.assessmentFor(helmetId),
+                              ),
+                              const SizedBox(height: 12),
                               _buildBatteryCard(reading),
                               const SizedBox(height: 12),
                               Row(

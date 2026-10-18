@@ -14,7 +14,10 @@ abstract final class RealtimeDatabasePaths {
   static String site(String siteId) => 'sites/$siteId';
   static String helmetMeta(String helmetId) => 'helmets/$helmetId/meta';
   static String helmetCurrent(String helmetId) => 'helmets/$helmetId/current';
+  static String helmetCurrentAssessment(String helmetId) =>
+      'helmets/$helmetId/currentAssessment';
   static String helmetReadings(String helmetId) => 'readings/$helmetId';
+  static String helmetAssessments(String helmetId) => 'assessments/$helmetId';
   static const String alerts = 'alerts';
   static const String configDefaults = 'config/defaults';
   static String helmetConfig(String helmetId) => 'config/helmets/$helmetId';
@@ -367,6 +370,86 @@ final class RtdbReadingRepository implements ReadingRepository {
           (a, b) => b.serverReceivedAt.compareTo(a.serverReceivedAt),
         );
         return List<SensorReading>.unmodifiable(readings);
+      }),
+    );
+  }
+}
+
+final class RtdbAssessmentRepository implements AssessmentRepository {
+  RtdbAssessmentRepository({
+    FirebaseDatabase? database,
+    this.historyLimit = 100,
+  }) : _database = database ?? FirebaseDatabase.instance;
+
+  final FirebaseDatabase _database;
+  final int historyLimit;
+
+  SafetyAssessment? _parse(
+    DataSnapshot snapshot,
+    String helmetId, {
+    String? assessmentId,
+  }) {
+    final data = _optionalRecord(snapshot.value, snapshot.ref.path);
+    if (data == null) return null;
+    data['helmetId'] ??= helmetId;
+    data['assessmentId'] ??= assessmentId ?? data['eventId'];
+    data['schemaVersion'] ??= '1.0';
+    return SafetyAssessment.fromJson(data);
+  }
+
+  @override
+  Stream<Map<String, SafetyAssessment>> watchLatestAssessments(
+    UserProfile actor,
+  ) {
+    final sources = <String, Stream<SafetyAssessment?>>{
+      for (final helmetId in _authorizedHelmetIds(actor))
+        helmetId: _guardStream(
+          _database
+              .ref(RealtimeDatabasePaths.helmetCurrentAssessment(helmetId))
+              .onValue
+              .map((event) => _parse(event.snapshot, helmetId)),
+        ),
+    };
+    return _combineByKey(sources);
+  }
+
+  @override
+  Stream<List<SafetyAssessment>> watchHelmetAssessments(
+    UserProfile actor,
+    String helmetId,
+  ) {
+    if (!_authorizedHelmetIds(actor).contains(helmetId)) {
+      return Stream.error(
+        const RepositoryAccessException(
+          'FORBIDDEN_SCOPE',
+          'Helmet assessments are outside the assigned scope.',
+        ),
+      );
+    }
+    final query = _database
+        .ref(RealtimeDatabasePaths.helmetAssessments(helmetId))
+        .orderByChild('assessedAt')
+        .limitToLast(historyLimit);
+    return _guardStream(
+      query.onValue.map((event) {
+        final records = _optionalRecord(
+          event.snapshot.value,
+          RealtimeDatabasePaths.helmetAssessments(helmetId),
+        );
+        if (records == null) return const <SafetyAssessment>[];
+        final assessments = <SafetyAssessment>[];
+        for (final entry in records.entries) {
+          final data = _record(
+            entry.value,
+            '${RealtimeDatabasePaths.helmetAssessments(helmetId)}/${entry.key}',
+          );
+          data['assessmentId'] ??= entry.key;
+          data['helmetId'] ??= helmetId;
+          data['schemaVersion'] ??= '1.0';
+          assessments.add(SafetyAssessment.fromJson(data));
+        }
+        assessments.sort((a, b) => b.assessedAt.compareTo(a.assessedAt));
+        return List<SafetyAssessment>.unmodifiable(assessments);
       }),
     );
   }

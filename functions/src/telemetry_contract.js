@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 
 export const TELEMETRY_SCHEMA_VERSION = '1.0';
+export const TELEMETRY_SCHEMA_VERSION_V2 = '2.0';
+export const TELEMETRY_SCHEMA_VERSIONS = Object.freeze([
+  TELEMETRY_SCHEMA_VERSION,
+  TELEMETRY_SCHEMA_VERSION_V2,
+]);
 export const TELEMETRY_MAX_PAYLOAD_BYTES = 8 * 1024;
 
 export const TELEMETRY_FAULTS = Object.freeze([
@@ -9,6 +14,10 @@ export const TELEMETRY_FAULTS = Object.freeze([
   'mq7ReadFailed',
   'mq7Uncalibrated',
   'mq7HeaterStateUnknown',
+  'mq135ReadFailed',
+  'mq135Uncalibrated',
+  'mq135HeaterStateUnknown',
+  'fallWindowUnavailable',
   'gpsUnavailable',
   'batteryUnavailable',
 ]);
@@ -28,15 +37,37 @@ export const TELEMETRY_ERROR_CODES = Object.freeze({
   invalidValidatedPayload: 'INVALID_VALIDATED_PAYLOAD',
 });
 
-const requiredFields = Object.freeze([
+const commonRequiredFields = Object.freeze([
   'schemaVersion',
   'eventId',
   'helmetId',
   'deviceTimestamp',
   'firmwareVersion',
+  'sensorFaults',
+]);
+
+const v1RequiredFields = Object.freeze([
+  ...commonRequiredFields,
   'gasWarmUp',
   'fallStatus',
-  'sensorFaults',
+]);
+
+const v2RequiredFields = Object.freeze([
+  ...commonRequiredFields,
+  'mq7WarmUp',
+  'mq135WarmUp',
+]);
+
+export const FALL_FEATURE_FIELDS = Object.freeze([
+  'acc_mean',
+  'acc_std',
+  'acc_min',
+  'acc_max',
+  'gyro_mean',
+  'gyro_std',
+  'gyro_max',
+  'jerk_mean',
+  'jerk_max',
 ]);
 
 const optionalMeasurementFields = Object.freeze([
@@ -56,6 +87,14 @@ const optionalMeasurementFields = Object.freeze([
   'gyroZDegreesPerSecond',
   'location',
   'batteryPct',
+  'mq7Raw',
+  'mq135Raw',
+  'mq7WarmUp',
+  'mq135WarmUp',
+  'fallFeatures',
+  'samplingRateHz',
+  'windowSamples',
+  'windowEndTimestamp',
 ]);
 
 const backendOwnedFields = Object.freeze([
@@ -65,7 +104,8 @@ const backendOwnedFields = Object.freeze([
 ]);
 
 const allowedFields = new Set([
-  ...requiredFields,
+  ...v1RequiredFields,
+  ...v2RequiredFields,
   ...optionalMeasurementFields,
 ]);
 const backendOwnedFieldSet = new Set(backendOwnedFields);
@@ -179,8 +219,8 @@ function rejectUnknownAndBackendFields(payload) {
   }
 }
 
-function requireFields(payload) {
-  for (const field of requiredFields) {
+function requireFields(payload, fields) {
+  for (const field of fields) {
     if (!Object.hasOwn(payload, field) || payload[field] === null) {
       fail(
         TELEMETRY_ERROR_CODES.missingField,
@@ -257,7 +297,7 @@ function optionalBoolean(payload, output, field) {
   output[field] = payload[field];
 }
 
-function normalizeFaults(value) {
+function normalizeFaults(value, requiredFaults = requiredContractFaults) {
   if (!Array.isArray(value)) {
     fail(
       TELEMETRY_ERROR_CODES.invalidType,
@@ -283,7 +323,7 @@ function normalizeFaults(value) {
     }
     seen.add(fault);
   }
-  for (const fault of requiredContractFaults) {
+  for (const fault of requiredFaults) {
     if (!seen.has(fault)) {
       fail(
         TELEMETRY_ERROR_CODES.missingSensorFault,
@@ -338,6 +378,71 @@ function validateUnavailableFields(payload) {
   }
 }
 
+function validateSchemaSpecificFields(payload) {
+  const v1Only = ['gasWarmUp', 'fallStatus', 'gasRaw', 'gasAdcVoltage',
+    'gasSensorVoltage', 'gasDigitalThreshold'];
+  const v2Only = ['mq7Raw', 'mq135Raw', 'mq7WarmUp', 'mq135WarmUp',
+    'fallFeatures', 'samplingRateHz', 'windowSamples', 'windowEndTimestamp'];
+  const disallowed = payload.schemaVersion === TELEMETRY_SCHEMA_VERSION
+    ? v2Only
+    : v1Only;
+  for (const field of disallowed) {
+    if (Object.hasOwn(payload, field)) {
+      fail(
+        TELEMETRY_ERROR_CODES.unknownField,
+        'Telemetry field is not part of the selected schema version.',
+        field,
+      );
+    }
+  }
+}
+
+function validateRawAdc(payload, output, field) {
+  if (!Object.hasOwn(payload, field) || payload[field] === null) return;
+  if (!Number.isInteger(payload[field])) {
+    fail(
+      TELEMETRY_ERROR_CODES.invalidType,
+      'Raw gas sensor readings must be integers.',
+      field,
+    );
+  }
+  output[field] = requireFiniteNumber(payload[field], field, { min: 0, max: 4095 });
+}
+
+function validateFallFeatures(value) {
+  if (!isRecord(value)) {
+    fail(
+      TELEMETRY_ERROR_CODES.invalidType,
+      'fallFeatures must be an object.',
+      'fallFeatures',
+    );
+  }
+  for (const key of Object.keys(value)) {
+    if (!FALL_FEATURE_FIELDS.includes(key)) {
+      fail(
+        TELEMETRY_ERROR_CODES.unknownField,
+        'fallFeatures contains an unknown field.',
+        `fallFeatures.${key}`,
+      );
+    }
+  }
+  const output = {};
+  for (const field of FALL_FEATURE_FIELDS) {
+    if (!Object.hasOwn(value, field) || value[field] === null) {
+      fail(
+        TELEMETRY_ERROR_CODES.missingField,
+        'fallFeatures is missing a required field.',
+        `fallFeatures.${field}`,
+      );
+    }
+    output[field] = requireFiniteNumber(value[field], `fallFeatures.${field}`, {
+      min: 0,
+      max: 100000,
+    });
+  }
+  return output;
+}
+
 function deepFreeze(value) {
   if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) deepFreeze(child);
@@ -350,24 +455,32 @@ export function validateCanonicalTelemetry(payload, { rawPayload } = {}) {
   enforceTelemetryPayloadSize(rawPayload ?? payload);
   const input = requireRecord(payload);
   rejectUnknownAndBackendFields(input);
-  requireFields(input);
-  validateUnavailableFields(input);
-
-  if (input.schemaVersion !== TELEMETRY_SCHEMA_VERSION) {
+  requireFields(input, commonRequiredFields);
+  if (!TELEMETRY_SCHEMA_VERSIONS.includes(input.schemaVersion)) {
     fail(
       TELEMETRY_ERROR_CODES.unsupportedSchema,
       'Telemetry schema version is unsupported.',
       'schemaVersion',
     );
   }
-  if (input.gasWarmUp !== true) {
+  validateSchemaSpecificFields(input);
+  requireFields(
+    input,
+    input.schemaVersion === TELEMETRY_SCHEMA_VERSION
+      ? v1RequiredFields
+      : v2RequiredFields,
+  );
+  validateUnavailableFields(input);
+
+  if (input.schemaVersion === TELEMETRY_SCHEMA_VERSION && input.gasWarmUp !== true) {
     fail(
       TELEMETRY_ERROR_CODES.invalidValue,
       'gasWarmUp must be true for the current hardware contract.',
       'gasWarmUp',
     );
   }
-  if (input.fallStatus !== 'notEvaluated') {
+  if (input.schemaVersion === TELEMETRY_SCHEMA_VERSION &&
+      input.fallStatus !== 'notEvaluated') {
     fail(
       TELEMETRY_ERROR_CODES.invalidValue,
       'fallStatus must remain notEvaluated.',
@@ -383,21 +496,84 @@ export function validateCanonicalTelemetry(payload, { rawPayload } = {}) {
   }
 
   const output = {
-    schemaVersion: TELEMETRY_SCHEMA_VERSION,
+    schemaVersion: input.schemaVersion,
     eventId: requireSafeId(input.eventId, 'eventId'),
     helmetId: requireSafeId(input.helmetId, 'helmetId'),
     deviceTimestamp: input.deviceTimestamp,
     firmwareVersion: requireFirmwareVersion(input.firmwareVersion),
-    gasWarmUp: true,
-    fallStatus: 'notEvaluated',
-    sensorFaults: normalizeFaults(input.sensorFaults),
+    sensorFaults: normalizeFaults(
+      input.sensorFaults,
+      input.schemaVersion === TELEMETRY_SCHEMA_VERSION
+        ? requiredContractFaults
+        : ['gpsUnavailable', 'batteryUnavailable'],
+    ),
   };
+
+  if (input.schemaVersion === TELEMETRY_SCHEMA_VERSION) {
+    output.gasWarmUp = true;
+    output.fallStatus = 'notEvaluated';
+  } else {
+    optionalBoolean(input, output, 'mq7WarmUp');
+    optionalBoolean(input, output, 'mq135WarmUp');
+    const fallWindowFields = [
+      'fallFeatures',
+      'samplingRateHz',
+      'windowSamples',
+      'windowEndTimestamp',
+    ];
+    const presentFallWindowFields = fallWindowFields.filter((field) =>
+      Object.hasOwn(input, field) && input[field] !== null);
+    if (presentFallWindowFields.length === 0) {
+      if (!output.sensorFaults.includes('mpuReadFailed') &&
+          !output.sensorFaults.includes('fallWindowUnavailable')) {
+        fail(
+          TELEMETRY_ERROR_CODES.missingSensorFault,
+          'A missing fall feature window requires an explicit fault.',
+          'sensorFaults',
+        );
+      }
+    } else if (presentFallWindowFields.length !== fallWindowFields.length) {
+      fail(
+        TELEMETRY_ERROR_CODES.missingField,
+        'A fall feature window must include all window fields.',
+        fallWindowFields.find((field) => !presentFallWindowFields.includes(field)),
+      );
+    } else if (input.samplingRateHz !== 50) {
+      fail(
+        TELEMETRY_ERROR_CODES.invalidValue,
+        'samplingRateHz must match the approved 50 Hz model contract.',
+        'samplingRateHz',
+      );
+    } else if (input.windowSamples !== 100) {
+      fail(
+        TELEMETRY_ERROR_CODES.invalidValue,
+        'windowSamples must match the approved 100-sample model contract.',
+        'windowSamples',
+      );
+    } else if (!Number.isSafeInteger(input.windowEndTimestamp) ||
+        input.windowEndTimestamp < 0 ||
+        input.windowEndTimestamp > input.deviceTimestamp) {
+      fail(
+        TELEMETRY_ERROR_CODES.invalidValue,
+        'windowEndTimestamp must be a non-negative epoch millisecond at or before deviceTimestamp.',
+        'windowEndTimestamp',
+      );
+    } else {
+      output.fallFeatures = validateFallFeatures(input.fallFeatures);
+      output.samplingRateHz = 50;
+      output.windowSamples = 100;
+      output.windowEndTimestamp = input.windowEndTimestamp;
+    }
+    validateRawAdc(input, output, 'mq7Raw');
+    validateRawAdc(input, output, 'mq135Raw');
+  }
 
   optionalFiniteNumber(input, output, 'temperatureC', { min: -40, max: 80 });
   optionalFiniteNumber(input, output, 'humidityPct', { min: 0, max: 100 });
   optionalFiniteNumber(input, output, 'heatIndexC', { min: -100, max: 250 });
 
-  if (Object.hasOwn(input, 'gasRaw') && input.gasRaw !== null) {
+  if (input.schemaVersion === TELEMETRY_SCHEMA_VERSION &&
+      Object.hasOwn(input, 'gasRaw') && input.gasRaw !== null) {
     if (!Number.isInteger(input.gasRaw)) {
       fail(
         TELEMETRY_ERROR_CODES.invalidType,
@@ -410,9 +586,11 @@ export function validateCanonicalTelemetry(payload, { rawPayload } = {}) {
       max: 4095,
     });
   }
-  optionalFiniteNumber(input, output, 'gasAdcVoltage', { min: 0, max: 3.6 });
-  optionalFiniteNumber(input, output, 'gasSensorVoltage', { min: 0, max: 5.5 });
-  optionalBoolean(input, output, 'gasDigitalThreshold');
+  if (input.schemaVersion === TELEMETRY_SCHEMA_VERSION) {
+    optionalFiniteNumber(input, output, 'gasAdcVoltage', { min: 0, max: 3.6 });
+    optionalFiniteNumber(input, output, 'gasSensorVoltage', { min: 0, max: 5.5 });
+    optionalBoolean(input, output, 'gasDigitalThreshold');
+  }
 
   for (const field of ['accelXG', 'accelYG', 'accelZG']) {
     optionalFiniteNumber(input, output, field, { min: -2, max: 2 });
@@ -438,7 +616,7 @@ export function validateCanonicalTelemetry(payload, { rawPayload } = {}) {
     ],
     'mpuReadFailed',
   );
-  if (
+  if (input.schemaVersion === TELEMETRY_SCHEMA_VERSION &&
     ![
       'gasRaw',
       'gasAdcVoltage',
@@ -452,6 +630,24 @@ export function validateCanonicalTelemetry(payload, { rawPayload } = {}) {
       'Missing MQ-7 diagnostics require an explicit fault.',
       'sensorFaults',
     );
+  }
+  if (input.schemaVersion === TELEMETRY_SCHEMA_VERSION_V2) {
+    if (!Object.hasOwn(output, 'mq7Raw') &&
+        !output.sensorFaults.includes('mq7ReadFailed')) {
+      fail(
+        TELEMETRY_ERROR_CODES.missingSensorFault,
+        'A missing MQ-7 reading requires an explicit fault.',
+        'sensorFaults',
+      );
+    }
+    if (!Object.hasOwn(output, 'mq135Raw') &&
+        !output.sensorFaults.includes('mq135ReadFailed')) {
+      fail(
+        TELEMETRY_ERROR_CODES.missingSensorFault,
+        'A missing MQ-135 reading requires an explicit fault.',
+        'sensorFaults',
+      );
+    }
   }
 
   Object.defineProperty(output, validatedPayloadMarker, {
