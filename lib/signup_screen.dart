@@ -1,26 +1,22 @@
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
-import 'main.dart';
-import 'user_role.dart';
+import 'application/session_controller.dart';
 
 class SignUpScreen extends StatefulWidget {
-  final UserRole initialRole;
+  final SessionController session;
 
-  const SignUpScreen({super.key, required this.initialRole});
+  const SignUpScreen({super.key, required this.session});
 
   @override
   State<SignUpScreen> createState() => _SignUpScreenState();
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
-  late UserRole _role = widget.initialRole;
-  final AuthService _authService = AuthService();
-
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _orgController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  SessionActionResult? _result;
 
   @override
   void dispose() {
@@ -43,28 +39,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     setState(() => _isLoading = true);
 
-    String? error = await _authService.signUp(
+    final result = await widget.session.registerWorker(
       email: _emailController.text.trim(),
       password: _passwordController.text.trim(),
-      name: _nameController.text.trim(),
-      organization: _orgController.text.trim(),
-      role: _role,
+      displayName: _nameController.text.trim(),
+      organizationName: _orgController.text.trim(),
     );
 
     if (mounted) {
       setState(() => _isLoading = false);
-      if (error == null) {
-        // Use pushAndRemoveUntil to ensure a clean navigation to Dashboard
-        // This provides a smoother transition than popUntil
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => AuthWrapper()),
-          (route) => false,
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error)),
-        );
-      }
+      setState(() => _result = result);
     }
   }
 
@@ -104,14 +88,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   children: [
                     IconButton(
                       onPressed: () => Navigator.of(context).maybePop(),
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                      color: Colors.white.withOpacity(0.90),
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        size: 18,
+                      ),
+                      color: Colors.white.withValues(alpha: 0.90),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       'Back to login',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.70),
+                        color: Colors.white.withValues(alpha: 0.70),
                         fontWeight: FontWeight.w700,
                         fontSize: 12,
                       ),
@@ -132,7 +119,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     Text(
                       'CREATE ACCOUNT',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.65),
+                        color: Colors.white.withValues(alpha: 0.65),
                         fontWeight: FontWeight.w800,
                         fontSize: 12,
                         letterSpacing: 0.6,
@@ -149,11 +136,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      _role == UserRole.supervisor
-                          ? 'Set up your supervisor profile'
-                          : 'Set up your worker profile',
+                      'Set up your worker profile',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.70),
+                        color: Colors.white.withValues(alpha: 0.70),
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                       ),
@@ -180,32 +165,31 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _FieldLabel('Select your role'),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _RoleTile(
-                                title: 'Supervisor',
-                                subtitle: 'Monitor &\nmanage',
-                                icon: Icons.person_outline,
-                                selected: _role == UserRole.supervisor,
-                                onTap: () => setState(() => _role = UserRole.supervisor),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFF2F80ED)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.badge_outlined,
+                                color: Color(0xFF1E7A34),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _RoleTile(
-                                title: 'Worker',
-                                subtitle: 'Track your\nstatus',
-                                icon: Icons.badge_outlined,
-                                selected: _role == UserRole.worker,
-                                onTap: () => setState(() => _role = UserRole.worker),
-                                iconBg: const Color(0xFFDFF3E4),
-                                iconColor: const Color(0xFF1E7A34),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Worker account\nSupervisor access requires an administrator invitation.',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 16),
                         _FieldLabel('Full name'),
@@ -241,6 +225,44 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           hintText: 'Enter site name…',
                           textInputAction: TextInputAction.done,
                         ),
+                        if (_result != null) ...[
+                          const SizedBox(height: 14),
+                          Semantics(
+                            liveRegion: true,
+                            child: Container(
+                              key: const Key('signup-result'),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: _result!.succeeded
+                                    ? const Color(0xFFE8F5E9)
+                                    : const Color(0xFFFFEBEE),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Text(
+                                    _result!.message,
+                                    style: TextStyle(
+                                      color: _result!.succeeded
+                                          ? const Color(0xFF1E7A34)
+                                          : const Color(0xFF9B1C1C),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  if (_result!.succeeded)
+                                    TextButton(
+                                      key: const Key('return-to-login'),
+                                      onPressed: () =>
+                                          Navigator.of(context).maybePop(),
+                                      child: const Text('Return to sign in'),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 18),
                         SizedBox(
                           height: 48,
@@ -268,22 +290,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     children: [
                                       Text(
                                         'Continue',
-                                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 15,
+                                        ),
                                       ),
                                       SizedBox(width: 10),
-                                      Icon(Icons.arrow_forward_rounded, size: 20),
+                                      Icon(
+                                        Icons.arrow_forward_rounded,
+                                        size: 20,
+                                      ),
                                     ],
                                   ),
                           ),
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          _role == UserRole.supervisor
-                              ? 'Tip: Use your work email for supervisor access.'
-                              : 'Tip: Use your work email for worker access.',
+                          'Tip: Use your work email for worker access.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Colors.black.withOpacity(0.38),
+                            color: Colors.black.withValues(alpha: 0.38),
                             fontWeight: FontWeight.w600,
                             fontSize: 11,
                           ),
@@ -302,79 +328,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 }
 
-class _RoleTile extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-  final Color iconBg;
-  final Color iconColor;
-
-  const _RoleTile({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-    this.iconBg = const Color(0xFFE7F0FF),
-    this.iconColor = const Color(0xFF2F80ED),
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected ? const Color(0xFF2F80ED) : Colors.black.withOpacity(0.10),
-            width: selected ? 1.4 : 1.0,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(icon, color: iconColor, size: 22),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                color: const Color(0xFF16324F),
-                fontWeight: FontWeight.w900,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.black.withOpacity(0.45),
-                fontWeight: FontWeight.w700,
-                fontSize: 10.5,
-                height: 1.15,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _FieldLabel extends StatelessWidget {
   final String text;
   const _FieldLabel(this.text);
@@ -384,7 +337,7 @@ class _FieldLabel extends StatelessWidget {
     return Text(
       text,
       style: TextStyle(
-        color: Colors.black.withOpacity(0.70),
+        color: Colors.black.withValues(alpha: 0.70),
         fontWeight: FontWeight.w800,
         fontSize: 12,
       ),
@@ -396,7 +349,6 @@ class _Input extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;
   final bool obscureText;
-  final Widget? suffix;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
 
@@ -404,7 +356,6 @@ class _Input extends StatelessWidget {
     required this.controller,
     required this.hintText,
     this.obscureText = false,
-    this.suffix,
     this.keyboardType,
     this.textInputAction,
   });
@@ -420,15 +371,17 @@ class _Input extends StatelessWidget {
         hintText: hintText,
         filled: true,
         fillColor: Colors.white,
-        suffixIcon: suffix,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.black.withOpacity(0.12)),
+          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.12)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.black.withOpacity(0.12)),
+          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.12)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -438,4 +391,3 @@ class _Input extends StatelessWidget {
     );
   }
 }
-

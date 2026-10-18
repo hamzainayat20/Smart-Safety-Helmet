@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,6 +7,23 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
     // Firebase (Kotlin DSL): apply Google Services plugin
     id("com.google.gms.google-services")
+}
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use(::load)
+}
+val mapsApiKey = providers.gradleProperty("MAPS_API_KEY").orNull
+    ?: localProperties.getProperty("MAPS_API_KEY")
+    ?: System.getenv("MAPS_API_KEY")
+    ?: ""
+
+if (mapsApiKey.isBlank() &&
+    gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
+) {
+    throw GradleException(
+        "MAPS_API_KEY is required for release builds. Configure an Android-restricted key outside source control.",
+    )
 }
 
 android {
@@ -30,6 +49,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["MAPS_API_KEY"] =
+            mapsApiKey.ifBlank { "MAPS_API_KEY_NOT_CONFIGURED" }
     }
 
     buildTypes {

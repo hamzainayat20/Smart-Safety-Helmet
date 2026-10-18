@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function verified() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    function callerProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function active() {
+      return verified() && callerProfile().active == true;
+    }
+
+    function administrator() {
+      return active() && request.auth.token.role == 'administrator';
+    }
+
+    function supervisorAssignedTo(resourceData) {
+      return active()
+        && request.auth.token.role == 'supervisor'
+        && resourceData.authorizedSupervisorIds is list
+        && request.auth.uid in resourceData.authorizedSupervisorIds;
+    }
+
+    match /users/{uid} {
+      allow get: if active()
+        && (request.auth.uid == uid
+          || administrator()
+          || supervisorAssignedTo(resource.data));
+      allow list: if false;
+
+      // Temporary controlled worker signup while profiles still live in Firestore.
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly([
+          'schemaVersion', 'uid', 'name', 'email', 'organization', 'role',
+          'active', 'siteIds', 'authorizedHelmetIds', 'pushAlertsEnabled',
+          'criticalAlertsOnly', 'vibrationEnabled', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == 'worker'
+        && request.resource.data.active == true
+        && request.resource.data.siteIds.size() == 0
+        && request.resource.data.authorizedHelmetIds.size() == 0;
+
+      allow update: if active()
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name', 'organization', 'pushAlertsEnabled',
+          'criticalAlertsOnly', 'vibrationEnabled', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

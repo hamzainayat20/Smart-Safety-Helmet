@@ -1,13 +1,25 @@
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
+
+import 'application/dashboard_view_model.dart';
+import 'domain/models.dart';
+import 'presentation/formatters.dart';
+import 'presentation/monitoring_state.dart';
 import 'sensor_detail_screen.dart';
 
 class HelmetsPage extends StatelessWidget {
-  const HelmetsPage({super.key});
+  const HelmetsPage({
+    super.key,
+    required this.viewModel,
+    required this.onSignOut,
+  });
+
+  final DashboardViewModel viewModel;
+  final VoidCallback onSignOut;
 
   @override
-  Widget build(BuildContext context) {
-    return SafeArea(
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: viewModel,
+    builder: (context, _) => SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -23,47 +35,56 @@ class HelmetsPage extends StatelessWidget {
                   topRight: Radius.circular(30),
                 ),
               ),
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  _HelmetCard(
-                    id: "Helmet H-03",
-                    worker: "Ali Shah - Zone A - Online",
-                    temp: "36.8°C",
-                    heartRate: "72 bpm",
-                    battery: 87,
-                    status: "Active",
-                    statusColor: Colors.green,
-                  ),
-                  _HelmetCard(
-                    id: "Helmet H-07",
-                    worker: "Faisal Khan - Zone B - Online",
-                    temp: "42°C",
-                    heartRate: "88 bpm",
-                    battery: 45,
-                    status: "Warning",
-                    statusColor: Colors.orange,
-                  ),
-                  _HelmetCard(
-                    id: "Helmet H-11",
-                    worker: "Zain Ahmed - Zone C - Online",
-                    temp: "37.2°C",
-                    gas: "850 ppm",
-                    battery: 62,
-                    status: "Critical",
-                    statusColor: Colors.red,
-                  ),
-                ],
-              ),
+              child: _buildBody(),
             ),
           ),
         ],
       ),
+    ),
+  );
+
+  Widget _buildBody() {
+    if (viewModel.loadState == MonitoringState.loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (viewModel.loadState == MonitoringState.permissionDenied ||
+        viewModel.loadState == MonitoringState.backendError) {
+      return MonitoringStatePanel(
+        state: viewModel.loadState,
+        title: viewModel.loadState == MonitoringState.permissionDenied
+            ? 'Helmet permission denied'
+            : 'Helmet backend unavailable',
+        message: viewModel.errorMessage,
+        onRetry: viewModel.retry,
+      );
+    }
+    if (viewModel.helmets.isEmpty) {
+      return const MonitoringStatePanel(
+        state: MonitoringState.empty,
+        title: 'No assigned helmets',
+        message: 'No helmets are assigned to this supervisor.',
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: viewModel.sortedHelmets
+          .map(
+            (helmet) => _HelmetCard(
+              helmet: helmet,
+              workerName: viewModel.workerNameFor(helmet),
+              reading: viewModel.readingFor(helmet.helmetId),
+              stateLabel: viewModel.stateLabelFor(helmet),
+              monitoringState: viewModel.monitoringStateFor(helmet),
+              lastUpdatedAt: viewModel.lastUpdateFor(helmet),
+              viewModel: viewModel,
+            ),
+          )
+          .toList(growable: false),
     );
   }
 
   Widget _buildHeader() {
-    final AuthService authService = AuthService();
+    final active = viewModel.activeHelmets.length;
     return Padding(
       padding: const EdgeInsets.fromLTRB(25, 20, 25, 0),
       child: Column(
@@ -73,7 +94,7 @@ class HelmetsPage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                "Helmet Management",
+                'Helmet Management',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 22,
@@ -81,7 +102,7 @@ class HelmetsPage extends StatelessWidget {
                 ),
               ),
               IconButton(
-                onPressed: () => authService.signOut(),
+                onPressed: onSignOut,
                 icon: const Icon(Icons.logout, color: Colors.white, size: 20),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
@@ -89,9 +110,10 @@ class HelmetsPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          const Text(
-            "14 registered • 12 active • 2 offline",
-            style: TextStyle(
+          Text(
+            '${viewModel.helmets.length} registered • $active active • '
+            '${viewModel.helmets.length - active} inactive • ${viewModel.dataSourceLabel}',
+            style: const TextStyle(
               color: Color(0xFF77A6D7),
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -102,61 +124,70 @@ class HelmetsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(25, 20, 25, 0),
-      child: TextField(
-        decoration: InputDecoration(
-          hintText: "Search helmet ID or worker...",
-          hintStyle: TextStyle(color: Colors.black.withOpacity(0.3), fontSize: 13),
-          prefixIcon: Icon(Icons.search, color: Colors.black.withOpacity(0.3), size: 20),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(vertical: 0),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
+  Widget _buildSearchBar() => Padding(
+    padding: const EdgeInsets.fromLTRB(25, 20, 25, 0),
+    child: TextField(
+      decoration: InputDecoration(
+        hintText: 'Search helmet ID or worker...',
+        hintStyle: TextStyle(
+          color: Colors.black.withValues(alpha: 0.3),
+          fontSize: 13,
+        ),
+        prefixIcon: Icon(
+          Icons.search,
+          color: Colors.black.withValues(alpha: 0.3),
+          size: 20,
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _HelmetCard extends StatelessWidget {
-  final String id, worker, temp, status;
-  final String? heartRate, gas;
-  final int battery;
-  final Color statusColor;
-
   const _HelmetCard({
-    required this.id,
-    required this.worker,
-    required this.temp,
-    this.heartRate,
-    this.gas,
-    required this.battery,
-    required this.status,
-    required this.statusColor,
+    required this.helmet,
+    required this.workerName,
+    required this.reading,
+    required this.stateLabel,
+    required this.monitoringState,
+    required this.lastUpdatedAt,
+    required this.viewModel,
   });
+  final Helmet helmet;
+  final String workerName;
+  final SensorReading? reading;
+  final String stateLabel;
+  final MonitoringState monitoringState;
+  final DateTime? lastUpdatedAt;
+  final DashboardViewModel viewModel;
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = monitoringStateColor(monitoringState);
     return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => SensorDetailScreen(helmetId: id, workerName: worker.split(' - ')[0]),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SensorDetailScreen(
+            helmetId: helmet.helmetId,
+            workerName: workerName,
+            viewModel: viewModel,
           ),
-        );
-      },
+        ),
+      ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black.withOpacity(0.05)),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
         ),
         child: Column(
           children: [
@@ -165,7 +196,7 @@ class _HelmetCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(Icons.engineering, color: statusColor, size: 20),
@@ -175,20 +206,42 @@ class _HelmetCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(id, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
-                      Text(worker, style: TextStyle(color: Colors.black.withOpacity(0.5), fontSize: 11)),
+                      Text(
+                        'Helmet ${helmet.helmetId}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        '$workerName • ${viewModel.siteNameFor(helmet)} • '
+                        '${helmet.zone ?? 'Zone unavailable'}\n'
+                        '${lastUpdatedAt == null ? 'Never updated' : 'Last update ${formatRelativeTime(lastUpdatedAt!)}'}',
+                        style: TextStyle(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          fontSize: 11,
+                          height: 1.3,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    status,
-                    style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                    stateLabel,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -197,10 +250,23 @@ class _HelmetCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildMetric(temp, "Temp", color: const Color(0xFF1E7A34)),
-                if (heartRate != null) _buildMetric(heartRate!, "Heart Rate", color: const Color(0xFF1E7A34)),
-                if (gas != null) _buildMetric(gas!, "Gas Level", color: Colors.red),
-                _buildBatteryMetric(battery),
+                _metric(
+                  formatMeasurement(
+                    reading?.temperatureC,
+                    SensorUnit.degreesCelsius,
+                  ),
+                  'Temp',
+                  statusColor,
+                ),
+                _metric(
+                  formatMeasurement(
+                    reading?.humidityPct,
+                    SensorUnit.percentRelativeHumidity,
+                  ),
+                  'Humidity',
+                  statusColor,
+                ),
+                _battery(reading?.batteryPct),
               ],
             ),
           ],
@@ -209,31 +275,57 @@ class _HelmetCard extends StatelessWidget {
     );
   }
 
-  Widget _buildMetric(String value, String label, {required Color color}) {
-    return Column(
-      children: [
-        Text(value, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: color)),
-        Text(label, style: TextStyle(color: Colors.black.withOpacity(0.4), fontSize: 10)),
-      ],
-    );
-  }
+  Widget _metric(String value, String label, Color color) => Column(
+    children: [
+      Text(
+        value,
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 15,
+          color: color,
+        ),
+      ),
+      Text(
+        label,
+        style: TextStyle(
+          color: Colors.black.withValues(alpha: 0.4),
+          fontSize: 10,
+        ),
+      ),
+    ],
+  );
 
-  Widget _buildBatteryMetric(int value) {
-    Color color = value > 50 ? Colors.green : (value > 20 ? Colors.orange : Colors.red);
+  Widget _battery(int? value) {
+    final color = value == null
+        ? Colors.grey
+        : value > 50
+        ? Colors.green
+        : value > 20
+        ? Colors.orange
+        : Colors.red;
     return Column(
       children: [
-        Text("$value%", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-        Text("Battery", style: TextStyle(color: Colors.black.withOpacity(0.4), fontSize: 10)),
+        Text(
+          formatMeasurement(value, SensorUnit.percent, fractionDigits: 0),
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+        ),
+        Text(
+          'Battery',
+          style: TextStyle(
+            color: Colors.black.withValues(alpha: 0.4),
+            fontSize: 10,
+          ),
+        ),
         const SizedBox(height: 4),
         SizedBox(
           width: 80,
           child: LinearProgressIndicator(
-            value: value / 100,
-            backgroundColor: Colors.black.withOpacity(0.05),
+            value: value == null ? 0 : value / 100,
+            backgroundColor: Colors.black.withValues(alpha: 0.05),
             valueColor: AlwaysStoppedAnimation<Color>(color),
             borderRadius: BorderRadius.circular(2),
           ),
-        )
+        ),
       ],
     );
   }

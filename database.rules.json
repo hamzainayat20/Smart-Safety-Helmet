@@ -1,0 +1,106 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.token.email_verified == true && root.child('users').child(auth.uid).child('active').val() == true && (auth.uid == $uid || auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && data.child('authorizedSupervisorIds').child(auth.uid).val() == true))",
+        ".write": "auth != null && auth.uid == $uid && ((!data.exists() && newData.child('uid').val() == auth.uid && newData.child('email').val() == auth.token.email && newData.child('role').val() == 'worker' && newData.child('active').val() == true && !newData.child('siteIds').exists() && !newData.child('authorizedHelmetIds').exists() && !newData.child('authorizedSupervisorIds').exists() && !newData.child('fcmTokenRefs').exists()) || (data.exists() && auth.token.email_verified == true && root.child('users').child(auth.uid).child('active').val() == true && newData.child('schemaVersion').val() == data.child('schemaVersion').val() && newData.child('uid').val() == data.child('uid').val() && newData.child('name').val() == data.child('name').val() && newData.child('email').val() == data.child('email').val() && newData.child('role').val() == data.child('role').val() && newData.child('active').val() == data.child('active').val() && newData.child('organizationName').val() == data.child('organizationName').val() && newData.child('siteIds').val() == data.child('siteIds').val() && newData.child('authorizedHelmetIds').val() == data.child('authorizedHelmetIds').val() && newData.child('authorizedSupervisorIds').val() == data.child('authorizedSupervisorIds').val() && newData.child('fcmTokenRefs').val() == data.child('fcmTokenRefs').val()))",
+        "schemaVersion": { ".validate": "newData.isString() && newData.val() == '1.0'" },
+        "uid": { ".validate": "newData.isString() && newData.val() == $uid" },
+        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100" },
+        "email": { ".validate": "newData.isString() && newData.val().length > 3 && newData.val().length <= 254" },
+        "organizationName": { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 120)" },
+        "role": { ".validate": "newData.val() == 'worker' || newData.val() == 'supervisor' || newData.val() == 'administrator'" },
+        "active": { ".validate": "newData.isBoolean()" },
+        "siteIds": { "$siteId": { ".validate": "newData.val() == true" } },
+        "authorizedHelmetIds": { "$helmetId": { ".validate": "newData.val() == true" } },
+        "authorizedSupervisorIds": { "$supervisorId": { ".validate": "newData.val() == true" } },
+        "fcmTokenRefs": { "$tokenHash": { ".validate": "newData.val() == true" } },
+        "pushAlertsEnabled": { ".validate": "newData.isBoolean()" },
+        "criticalAlertsOnly": { ".validate": "newData.isBoolean()" },
+        "vibrationEnabled": { ".validate": "newData.isBoolean()" },
+        "updatedAt": { ".validate": "newData.isNumber() && newData.val() <= now" },
+        "$other": { ".validate": false }
+      }
+    },
+    "sites": {
+      "$siteId": {
+        ".read": "auth != null && auth.token.email_verified == true && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && root.child('users').child(auth.uid).child('siteIds').child($siteId).val() == true && data.child('supervisors').child(auth.uid).val() == true))",
+        ".write": false
+      }
+    },
+    "helmets": {
+      "$helmetId": {
+        "meta": {
+          ".read": "auth != null && auth.token.email_verified == true && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && root.child('users').child(auth.uid).child('siteIds').child(data.child('siteId').val()).val() == true && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true) || ((auth.token.role == 'worker' || root.child('users').child(auth.uid).child('role').val() == 'worker') && data.child('assignedWorkerId').val() == auth.uid && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true))",
+          ".write": false
+        },
+        "current": {
+          ".read": "auth != null && auth.token.email_verified == true && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && root.child('users').child(auth.uid).child('siteIds').child(root.child('helmets').child($helmetId).child('meta').child('siteId').val()).val() == true && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true) || ((auth.token.role == 'worker' || root.child('users').child(auth.uid).child('role').val() == 'worker') && root.child('helmets').child($helmetId).child('meta').child('assignedWorkerId').val() == auth.uid && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true))",
+          ".write": false
+        },
+        "$other": { ".validate": false }
+      }
+    },
+    "readings": {
+      "$helmetId": {
+        ".read": "auth != null && auth.token.email_verified == true && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && root.child('users').child(auth.uid).child('siteIds').child(root.child('helmets').child($helmetId).child('meta').child('siteId').val()).val() == true && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true) || ((auth.token.role == 'worker' || root.child('users').child(auth.uid).child('role').val() == 'worker') && root.child('helmets').child($helmetId).child('meta').child('assignedWorkerId').val() == auth.uid && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true))",
+        ".write": false,
+        ".indexOn": ["serverReceivedAt"]
+      }
+    },
+    "alerts": {
+      ".read": "auth != null && auth.token.email_verified == true && root.child('users').child(auth.uid).child('active').val() == true && query.orderByChild == 'helmetId' && query.equalTo != null && query.limitToLast != null && query.limitToLast <= 100 && (auth.token.role == 'administrator' || root.child('users').child(auth.uid).child('authorizedHelmetIds').child(query.equalTo).val() == true)",
+      ".indexOn": ["helmetId", "siteId", "alertType", "status", "serverReceivedAt"],
+      "$alertId": {
+        ".read": "auth != null && auth.token.email_verified == true && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && root.child('users').child(auth.uid).child('siteIds').child(data.child('siteId').val()).val() == true && root.child('users').child(auth.uid).child('authorizedHelmetIds').child(data.child('helmetId').val()).val() == true) || ((auth.token.role == 'worker' || root.child('users').child(auth.uid).child('role').val() == 'worker') && data.child('workerId').val() == auth.uid && root.child('users').child(auth.uid).child('authorizedHelmetIds').child(data.child('helmetId').val()).val() == true))",
+        ".write": false,
+        "schemaVersion": { ".validate": "newData.val() == data.val()" },
+        "alertId": { ".validate": "newData.val() == data.val() && newData.val() == $alertId" },
+        "eventId": { ".validate": "newData.val() == data.val()" },
+        "helmetId": { ".validate": "newData.val() == data.val()" },
+        "siteId": { ".validate": "newData.val() == data.val()" },
+        "workerId": { ".validate": "newData.val() == data.val()" },
+        "alertType": { ".validate": "newData.val() == data.val()" },
+        "severity": { ".validate": "newData.val() == data.val()" },
+        "sensorValue": { ".validate": "newData.val() == data.val()" },
+        "threshold": { ".validate": "newData.val() == data.val()" },
+        "unit": { ".validate": "newData.val() == data.val()" },
+        "evidence": { ".validate": "newData.val() == data.val()" },
+        "deviceTimestamp": { ".validate": "newData.val() == data.val()" },
+        "serverReceivedAt": { ".validate": "newData.val() == data.val()" },
+        "location": { ".validate": "newData.val() == data.val()" },
+        "status": { ".validate": "newData.val() == 'acknowledged'" },
+        "acknowledgedBy": { ".validate": "newData.val() == auth.uid" },
+        "acknowledgedAt": { ".validate": "newData.isNumber() && newData.val() <= now" },
+        "resolutionNote": { ".validate": "newData.val() == data.val()" },
+        "$other": { ".validate": false }
+      }
+    },
+    "config": {
+      "defaults": {
+        ".read": "auth != null && auth.token.email_verified == true && root.child('users').child(auth.uid).child('active').val() == true",
+        ".write": false
+      },
+      "helmets": {
+        "$helmetId": {
+          ".read": "auth != null && auth.token.email_verified == true && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'administrator' || root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true)",
+          ".write": "auth != null && auth.token.email_verified == true && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true && root.child('users').child(auth.uid).child('siteIds').child(root.child('helmets').child($helmetId).child('meta').child('siteId').val()).val() == true)) && newData.child('helmetId').val() == $helmetId && newData.child('updatedBy').val() == auth.uid && newData.child('updatedAt').isNumber() && newData.child('updatedAt').val() <= now && newData.child('temperatureWarningC').isNumber() && newData.child('temperatureCriticalC').isNumber() && newData.child('temperatureWarningC').val() < newData.child('temperatureCriticalC').val() && newData.child('humidityCriticalLowPct').val() < newData.child('humidityWarningLowPct').val() && newData.child('humidityWarningLowPct').val() < newData.child('humidityWarningHighPct').val() && newData.child('humidityWarningHighPct').val() < newData.child('humidityCriticalHighPct').val() && newData.child('gasWarningPpm').val() < newData.child('gasCriticalPpm').val() && newData.child('fallImpactThresholdG').val() > 0 && newData.child('fallDuplicateCooldownSeconds').val() > 0 && newData.child('normalPollingIntervalSeconds').val() > 0 && newData.child('gasWarmUpHours').val() >= 0"
+        }
+      }
+    },
+    "dedupe": {
+      ".read": false,
+      ".write": false
+    },
+    "notificationTokens": {
+      ".read": false,
+      ".write": false
+    },
+    "notificationTokenOwners": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
-import 'main.dart';
+import 'application/session_controller.dart';
 import 'signup_screen.dart';
 import 'user_role.dart';
 
 class LoginScreen extends StatefulWidget {
   final UserRole role;
+  final SessionController session;
 
-  const LoginScreen({super.key, required this.role});
+  const LoginScreen({super.key, required this.role, required this.session});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final AuthService _authService = AuthService();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscure = true;
   bool _isLoading = false;
+  SessionActionResult? _result;
 
   @override
   void dispose() {
@@ -37,7 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
-    String? error = await _authService.signIn(
+    final result = await widget.session.signIn(
       email: _emailController.text.trim(),
       password: _passwordController.text.trim(),
       expectedRole: widget.role,
@@ -45,19 +45,55 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (mounted) {
       setState(() => _isLoading = false);
-      if (error == null) {
-        // Use pushAndRemoveUntil to ensure a clean navigation to Dashboard
-        // This provides a smoother transition than popUntil
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => AuthWrapper()),
-          (route) => false,
-        );
+      if (result.succeeded) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error)),
-        );
+        setState(() => _result = result);
       }
     }
+  }
+
+  Future<void> _handlePasswordReset() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      setState(
+        () => _result = const SessionActionResult.failure(
+          SessionIssue.invalidEmail,
+          'Enter your email address first.',
+        ),
+      );
+      return;
+    }
+    setState(() => _isLoading = true);
+    final result = await widget.session.sendPasswordReset(email);
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+      _result = result;
+    });
+  }
+
+  Future<void> _handleResendVerification() async {
+    if (_emailController.text.trim().isEmpty ||
+        _passwordController.text.isEmpty) {
+      setState(
+        () => _result = const SessionActionResult.failure(
+          SessionIssue.invalidCredentials,
+          'Enter your email and password to request another verification email.',
+        ),
+      );
+      return;
+    }
+    setState(() => _isLoading = true);
+    final result = await widget.session.resendVerification(
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+    );
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+      _result = result;
+    });
   }
 
   @override
@@ -95,8 +131,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                    color: Colors.white.withOpacity(0.90),
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 18,
+                    ),
+                    color: Colors.white.withValues(alpha: 0.90),
                     onPressed: () => Navigator.of(context).maybePop(),
                   ),
                 ),
@@ -114,7 +153,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       widget.role.accessLabel,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.65),
+                        color: Colors.white.withValues(alpha: 0.65),
                         fontWeight: FontWeight.w800,
                         fontSize: 12,
                         letterSpacing: 0.6,
@@ -133,7 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       'Sign in to monitor your site',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.70),
+                        color: Colors.white.withValues(alpha: 0.70),
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                       ),
@@ -167,6 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           hintText: 'name@example.com',
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.email],
                         ),
                         const SizedBox(height: 14),
                         _FieldLabel('Password'),
@@ -176,29 +216,79 @@ class _LoginScreenState extends State<LoginScreen> {
                           hintText: '••••••••',
                           obscureText: _obscure,
                           suffix: IconButton(
-                            onPressed: () => setState(() => _obscure = !_obscure),
+                            onPressed: () =>
+                                setState(() => _obscure = !_obscure),
                             icon: Icon(
-                              _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                              _obscure
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
                               size: 20,
-                              color: Colors.black.withOpacity(0.55),
+                              color: Colors.black.withValues(alpha: 0.55),
                             ),
                           ),
                           textInputAction: TextInputAction.done,
+                          autofillHints: const [AutofillHints.password],
                         ),
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {},
-                            child: const Text(
-                              'Forgot password?',
-                              style: TextStyle(
-                                color: accent,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
+                        if (_result != null) ...[
+                          const SizedBox(height: 12),
+                          Semantics(
+                            liveRegion: true,
+                            child: Container(
+                              key: const Key('login-result'),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: _result!.succeeded
+                                    ? const Color(0xFFE8F5E9)
+                                    : const Color(0xFFFFEBEE),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                _result!.message,
+                                style: TextStyle(
+                                  color: _result!.succeeded
+                                      ? const Color(0xFF1E7A34)
+                                      : const Color(0xFF9B1C1C),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ),
+                        ],
+                        const SizedBox(height: 10),
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            TextButton(
+                              key: const Key('resend-verification'),
+                              onPressed: _isLoading
+                                  ? null
+                                  : _handleResendVerification,
+                              child: const Text(
+                                'Send/Resend verification email',
+                                style: TextStyle(
+                                  color: accent,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              key: const Key('forgot-password'),
+                              onPressed: _isLoading
+                                  ? null
+                                  : _handlePasswordReset,
+                              child: const Text(
+                                'Forgot password?',
+                                style: TextStyle(
+                                  color: accent,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 6),
                         SizedBox(
@@ -224,25 +314,36 @@ class _LoginScreenState extends State<LoginScreen> {
                                   )
                                 : const Text(
                                     'Sign in',
-                                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
                                   ),
                           ),
                         ),
                         const SizedBox(height: 16),
                         Row(
                           children: [
-                            Expanded(child: Divider(color: Colors.black.withOpacity(0.12))),
+                            Expanded(
+                              child: Divider(
+                                color: Colors.black.withValues(alpha: 0.12),
+                              ),
+                            ),
                             const SizedBox(width: 10),
                             Text(
                               'or',
                               style: TextStyle(
-                                color: Colors.black.withOpacity(0.40),
+                                color: Colors.black.withValues(alpha: 0.40),
                                 fontWeight: FontWeight.w700,
                                 fontSize: 12,
                               ),
                             ),
                             const SizedBox(width: 10),
-                            Expanded(child: Divider(color: Colors.black.withOpacity(0.12))),
+                            Expanded(
+                              child: Divider(
+                                color: Colors.black.withValues(alpha: 0.12),
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -250,21 +351,28 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: 48,
                           child: OutlinedButton(
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.black.withOpacity(0.75),
-                              side: BorderSide(color: Colors.black.withOpacity(0.18)),
+                              foregroundColor: Colors.black.withValues(
+                                alpha: 0.75,
+                              ),
+                              side: BorderSide(
+                                color: Colors.black.withValues(alpha: 0.18),
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            onPressed: () {},
+                            onPressed: null,
                             child: const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(Icons.access_time_rounded, size: 18),
                                 SizedBox(width: 10),
                                 Text(
-                                  'Continue with SSO',
-                                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                                  'SSO not configured',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ],
                             ),
@@ -278,21 +386,27 @@ class _LoginScreenState extends State<LoginScreen> {
                               Text(
                                 "Don't have an account? ",
                                 style: TextStyle(
-                                  color: Colors.black.withOpacity(0.55),
+                                  color: Colors.black.withValues(alpha: 0.55),
                                   fontWeight: FontWeight.w600,
                                   fontSize: 12,
                                 ),
                               ),
                               InkWell(
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => SignUpScreen(initialRole: widget.role),
-                                    ),
-                                  );
-                                },
-                                child: const Text(
-                                  'Create account',
+                                onTap: widget.role == UserRole.worker
+                                    ? () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => SignUpScreen(
+                                              session: widget.session,
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    : null,
+                                child: Text(
+                                  widget.role == UserRole.worker
+                                      ? 'Create worker account'
+                                      : 'Supervisor accounts are invite-only',
                                   style: TextStyle(
                                     color: accent,
                                     fontWeight: FontWeight.w800,
@@ -326,7 +440,7 @@ class _FieldLabel extends StatelessWidget {
     return Text(
       text,
       style: TextStyle(
-        color: Colors.black.withOpacity(0.70),
+        color: Colors.black.withValues(alpha: 0.70),
         fontWeight: FontWeight.w800,
         fontSize: 12,
       ),
@@ -341,6 +455,7 @@ class _Input extends StatelessWidget {
   final Widget? suffix;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
+  final Iterable<String>? autofillHints;
 
   const _Input({
     required this.controller,
@@ -349,6 +464,7 @@ class _Input extends StatelessWidget {
     this.suffix,
     this.keyboardType,
     this.textInputAction,
+    this.autofillHints,
   });
 
   @override
@@ -358,19 +474,23 @@ class _Input extends StatelessWidget {
       obscureText: obscureText,
       keyboardType: keyboardType,
       textInputAction: textInputAction,
+      autofillHints: autofillHints,
       decoration: InputDecoration(
         hintText: hintText,
         filled: true,
         fillColor: Colors.white,
         suffixIcon: suffix,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.black.withOpacity(0.12)),
+          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.12)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.black.withOpacity(0.12)),
+          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.12)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -380,4 +500,3 @@ class _Input extends StatelessWidget {
     );
   }
 }
-

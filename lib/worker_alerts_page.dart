@@ -1,161 +1,250 @@
 import 'package:flutter/material.dart';
 
-class WorkerAlertsPage extends StatelessWidget {
-  const WorkerAlertsPage({super.key});
+import 'alert_detail_screen.dart';
+import 'application/dashboard_view_model.dart';
+import 'domain/models.dart';
+import 'presentation/formatters.dart';
+import 'presentation/monitoring_state.dart';
+
+class WorkerAlertsPage extends StatefulWidget {
+  const WorkerAlertsPage({super.key, required this.viewModel});
+
+  final DashboardViewModel viewModel;
 
   @override
-  Widget build(BuildContext context) {
-    const bgBottom = Color(0xFF07152C);
+  State<WorkerAlertsPage> createState() => _WorkerAlertsPageState();
+}
 
-    return Scaffold(
-      backgroundColor: bgBottom,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.only(top: 20),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF4F6FA),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(30),
-                    topRight: Radius.circular(30),
-                  ),
-                ),
-                child: ListView(
-                  padding: const EdgeInsets.all(20),
+enum _WorkerAlertFilter { all, active, resolved }
+
+class _WorkerAlertsPageState extends State<WorkerAlertsPage> {
+  _WorkerAlertFilter _filter = _WorkerAlertFilter.all;
+
+  DashboardViewModel get viewModel => widget.viewModel;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: viewModel,
+    builder: (context, _) {
+      final active = viewModel.alerts
+          .where((alert) => alert.status != AlertStatus.resolved)
+          .length;
+      final today = viewModel.alerts
+          .where(
+            (alert) =>
+                DateTime.now()
+                    .toUtc()
+                    .difference(alert.serverReceivedAt)
+                    .inHours <
+                24,
+          )
+          .length;
+      return Scaffold(
+        backgroundColor: const Color(0xFF07152C),
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(25, 20, 25, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildFilterTabs(),
+                    const Text(
+                      'My Alerts',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      '${viewModel.helmets.firstOrNull?.helmetId ?? 'No helmet'} • '
+                      '${viewModel.profile.displayName} • ${viewModel.dataSourceLabel}',
+                      style: const TextStyle(
+                        color: Color(0xFF77A6D7),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 20),
-                    _AlertCard(
-                      title: "High Humidity Detected",
-                      subtitle: "Humidity level exceeded threshold",
-                      detail: "Humidity: 78% (limit: 70%)",
-                      time: "35m ago",
-                      color: Colors.orange,
-                      icon: Icons.water_drop_outlined,
-                      statusLabel: "Warning",
-                      statusSub: "Auto-monitoring...",
-                      showAcknowledge: true,
-                    ),
-                    const _AlertCard(
-                      title: "Gas Spike — Resolved",
-                      subtitle: "Brief CO₂ elevation, returned to normal",
-                      detail: "Peak: 310 ppm → Now: 198 ppm",
-                      time: "2h ago",
-                      color: Colors.green,
-                      icon: Icons.check_circle_outline_rounded,
-                      statusLabel: "Resolved",
-                      statusSub: "Duration: 4 min",
-                    ),
-                    const _AlertCard(
-                      title: "High Temp — Resolved",
-                      subtitle: "Temperature briefly elevated during noon shift",
-                      detail: "Peak: 39.2°C → Normal",
-                      time: "Yesterday",
-                      color: Colors.green,
-                      icon: Icons.check_circle_outline_rounded,
-                      statusLabel: "Resolved",
-                      statusSub: "Duration: 12 min",
-                    ),
-                    const _AlertCard(
-                      title: "Helmet Battery Low",
-                      subtitle: "Battery dropped below 20% during shift",
-                      detail: "Battery: 18% — Charged after shift",
-                      time: "2 days ago",
-                      color: Colors.blue,
-                      icon: Icons.battery_alert_outlined,
-                      statusLabel: "Resolved",
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _StatMini(
+                          label: 'Active',
+                          value: '$active',
+                          color: Colors.red,
+                        ),
+                        _StatMini(
+                          label: 'Today',
+                          value: '$today',
+                          color: Colors.orange,
+                        ),
+                        _StatMini(
+                          label: 'Resolved',
+                          value: '${viewModel.alerts.length - active}',
+                          color: Colors.green,
+                        ),
+                        _StatMini(
+                          label: 'Total',
+                          value: '${viewModel.alerts.length}',
+                          color: Colors.blue,
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(25, 20, 25, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "My Alerts",
-            style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
-          ),
-          Text(
-            "Helmet H-03 • Ali Shah",
-            style: TextStyle(color: Color(0xFF77A6D7), fontSize: 12, fontWeight: FontWeight.w600),
-          ),
-          SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _StatMini(label: "Active", value: "0", color: Colors.red),
-              _StatMini(label: "Today", value: "1", color: Colors.orange),
-              _StatMini(label: "This Week", value: "3", color: Colors.green),
-              _StatMini(label: "Total", value: "12", color: Colors.blue),
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 20),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF4F6FA),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(30),
+                      topRight: Radius.circular(30),
+                    ),
+                  ),
+                  child: ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      _filterTabs(),
+                      const SizedBox(height: 20),
+                      if (viewModel.loadState == MonitoringState.loading)
+                        const Center(child: CircularProgressIndicator())
+                      else if (viewModel.loadState ==
+                              MonitoringState.permissionDenied ||
+                          viewModel.loadState == MonitoringState.backendError)
+                        MonitoringStatePanel(
+                          state: viewModel.loadState,
+                          title:
+                              viewModel.loadState ==
+                                  MonitoringState.permissionDenied
+                              ? 'Alert permission denied'
+                              : 'Alert backend unavailable',
+                          message: viewModel.errorMessage,
+                          onRetry: viewModel.retry,
+                        )
+                      else if (_filteredAlerts.isEmpty)
+                        const Text(
+                          'No alerts match this filter for your assigned helmet.',
+                        )
+                      else
+                        ..._filteredAlerts.map(
+                          (alert) => _WorkerAlertCard(
+                            alert: alert,
+                            onOpen: () => _openAlert(context, alert.alertId),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      );
+    },
+  );
 
-  Widget _buildFilterTabs() {
-    return Row(
-      children: [
-        _FilterTab(label: "All", isSelected: true),
-        const SizedBox(width: 8),
-        _FilterTab(label: "Active", isSelected: false),
-        const SizedBox(width: 8),
-        _FilterTab(label: "Resolved", isSelected: false),
-      ],
+  List<SafetyAlert> get _filteredAlerts => viewModel.alerts
+      .where((alert) {
+        return switch (_filter) {
+          _WorkerAlertFilter.all => true,
+          _WorkerAlertFilter.active => alert.status != AlertStatus.resolved,
+          _WorkerAlertFilter.resolved => alert.status == AlertStatus.resolved,
+        };
+      })
+      .toList(growable: false);
+
+  Widget _filterTabs() => Row(
+    children: _WorkerAlertFilter.values.indexed
+        .expand((entry) {
+          final (index, value) = entry;
+          return [
+            if (index > 0) const SizedBox(width: 8),
+            _FilterTab(
+              label: value.name[0].toUpperCase() + value.name.substring(1),
+              isSelected: _filter == value,
+              onTap: () => setState(() => _filter = value),
+            ),
+          ];
+        })
+        .toList(growable: false),
+  );
+
+  void _openAlert(BuildContext context, String alertId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => AlertDetailScreen(
+          profile: viewModel.profile,
+          alertId: alertId,
+          dependencies: viewModel.dependencies,
+        ),
+      ),
     );
   }
 }
 
 class _StatMini extends StatelessWidget {
-  final String label, value;
+  const _StatMini({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+  final String label;
+  final String value;
   final Color color;
-  const _StatMini({required this.label, required this.value, required this.color});
-
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 75,
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF16324F),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          Text(value, style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w900)),
-          Text(label, style: const TextStyle(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.w700)),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    width: 75,
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    decoration: BoxDecoration(
+      color: const Color(0xFF16324F),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white60,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _FilterTab extends StatelessWidget {
+  const _FilterTab({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
   final String label;
   final bool isSelected;
-  const _FilterTab({required this.label, required this.isSelected});
-
+  final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) {
-    return Container(
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(10),
+    child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.white : Colors.white.withOpacity(0.5),
+        color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.black12),
       ),
@@ -167,31 +256,26 @@ class _FilterTab extends StatelessWidget {
           fontSize: 14,
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
-class _AlertCard extends StatelessWidget {
-  final String title, subtitle, detail, time, statusLabel;
-  final String? statusSub;
-  final Color color;
-  final IconData icon;
-  final bool showAcknowledge;
-
-  const _AlertCard({
-    required this.title,
-    required this.subtitle,
-    required this.detail,
-    required this.time,
-    required this.color,
-    required this.icon,
-    required this.statusLabel,
-    this.statusSub,
-    this.showAcknowledge = false,
-  });
-
+class _WorkerAlertCard extends StatelessWidget {
+  const _WorkerAlertCard({required this.alert, required this.onOpen});
+  final SafetyAlert alert;
+  final VoidCallback onOpen;
   @override
   Widget build(BuildContext context) {
+    final resolved = alert.status == AlertStatus.resolved;
+    final color = resolved
+        ? Colors.green
+        : alert.severity == SafetySeverity.critical
+        ? Colors.red
+        : Colors.orange;
+    final detail = alert.sensorValue == null || alert.unit == null
+        ? 'Incident evidence recorded'
+        : '${formatMeasurement(alert.sensorValue, alert.unit!)}'
+              '${alert.threshold == null ? '' : ' (threshold: ${formatMeasurement(alert.threshold, alert.unit!)})'}';
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -205,50 +289,50 @@ class _AlertCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 20),
+              Icon(
+                resolved
+                    ? Icons.check_circle_outline
+                    : Icons.warning_amber_rounded,
+                color: color,
+                size: 20,
+              ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+                child: Text(
+                  '${alertTypeLabel(alert.type)}${resolved ? ' — Resolved' : ''}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                  ),
+                ),
               ),
-              Text(time, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+              Text(
+                formatRelativeTime(alert.serverReceivedAt),
+                style: const TextStyle(color: Colors.grey, fontSize: 10),
+              ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(subtitle, style: const TextStyle(color: Colors.black54, fontSize: 12)),
+          Text(
+            'Helmet ${alert.helmetId} • ${alert.status.name}',
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
+          ),
           const SizedBox(height: 12),
-          Text(detail, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
-                    child: Text(statusLabel, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900)),
-                  ),
-                  if (statusSub != null) ...[
-                    const SizedBox(height: 4),
-                    Text(statusSub!, style: const TextStyle(color: Colors.black38, fontSize: 10)),
-                  ]
-                ],
-              ),
-              if (showAcknowledge)
-                ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black,
-                    elevation: 0,
-                    side: const BorderSide(color: Colors.black12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                  child: const Text("Acknowledge", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
-                ),
-            ],
+          Text(
+            detail,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: onOpen,
+              child: const Text('View Details'),
+            ),
           ),
         ],
       ),

@@ -32,6 +32,24 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/node_modules/
+**/node_modules/
+firmware/*.nvs
+firmware/*secrets*
+firmware/.pio/
+firmware/build-host/
+.local-node/
+firebase-debug.log
+*-debug.log
+functions/.secret.local
+.env
+.env.*
+!.env.example
+.venv/
+**/__pycache__/
+*.py[cod]
+emulator-test.tap
+firebase.emulator.local.json
 
 # Symbolication related
 app.*.symbols

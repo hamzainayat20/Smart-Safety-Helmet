@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import 'application/session_controller.dart';
 import 'login_screen.dart';
 import 'user_role.dart';
 
 class RoleSelectionScreen extends StatefulWidget {
-  const RoleSelectionScreen({super.key});
+  const RoleSelectionScreen({super.key, required this.session});
+
+  final SessionController session;
 
   @override
   State<RoleSelectionScreen> createState() => _RoleSelectionScreenState();
@@ -12,6 +16,14 @@ class RoleSelectionScreen extends StatefulWidget {
 
 class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
   UserRole _role = UserRole.supervisor;
+
+  void _continueToLogin() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LoginScreen(role: _role, session: widget.session),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,114 +45,119 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
 
     return Scaffold(
       backgroundColor: bgBottom,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [bgTop, bgBottom],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: (w * 0.08).clamp(22.0, 36.0),
+      body: CallbackShortcuts(
+        bindings: <ShortcutActivator, VoidCallback>{
+          const SingleActivator(LogicalKeyboardKey.enter): _continueToLogin,
+          const SingleActivator(LogicalKeyboardKey.numpadEnter):
+              _continueToLogin,
+        },
+        child: Focus(
+          autofocus: true,
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [bgTop, bgBottom],
+              ),
             ),
-            child: Column(
-              children: [
-                SizedBox(height: (h * 0.04).clamp(10.0, 22.0)),
-                _AppMark(size: (w * 0.18).clamp(64.0, 86.0)),
-                SizedBox(height: (h * 0.02).clamp(10.0, 18.0)),
-                Text(
-                  'Who are you?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: titleSize,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
+            child: SafeArea(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: (w * 0.08).clamp(22.0, 36.0),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Select your role to access the\nright features for your work',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: subtitleSize,
-                    height: 1.35,
-                    fontWeight: FontWeight.w500,
-                    color: subtitleColor,
-                  ),
-                ),
-                SizedBox(height: (h * 0.03).clamp(14.0, 22.0)),
-                _RoleCard(
-                  title: 'Supervisor',
-                  description: 'Monitor workers, receive\nalerts, manage helmets',
-                  leading: Icons.supervisor_account,
-                  chips: const ['Live dashboard', 'GPS map', 'Alerts'],
-                  selected: _role == UserRole.supervisor,
-                  onTap: () => setState(() => _role = UserRole.supervisor),
-                  cardBg: cardBg,
-                  chipBg: chipBg,
-                  chipText: chipText,
-                  borderColor: cardBorder,
-                ),
-                SizedBox(height: (h * 0.02).clamp(12.0, 16.0)),
-                _DividerOr(color: Colors.white.withOpacity(0.18)),
-                SizedBox(height: (h * 0.02).clamp(12.0, 16.0)),
-                _RoleCard(
-                  title: 'Worker',
-                  description: 'View your own\nhelmet status and\nalerts',
-                  leading: Icons.badge_outlined,
-                  chips: const ['Status view', 'My alerts'],
-                  selected: _role == UserRole.worker,
-                  onTap: () => setState(() => _role = UserRole.worker),
-                  cardBg: cardBg,
-                  chipBg: chipBg,
-                  chipText: chipText,
-                  borderColor: cardBorder,
-                ),
-                const Spacer(),
-                _SelectedRolePill(role: _role),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  height: (h * 0.065).clamp(48.0, 56.0),
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: buttonBg,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                child: ListView(
+                  children: [
+                    SizedBox(height: (h * 0.04).clamp(10.0, 22.0)),
+                    _AppMark(size: (w * 0.18).clamp(64.0, 86.0)),
+                    SizedBox(height: (h * 0.02).clamp(10.0, 18.0)),
+                    Text(
+                      'Who are you?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: titleSize,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
                       ),
-                      elevation: 0,
                     ),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => LoginScreen(role: _role),
-                        ),
-                      );
-                    },
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _role == UserRole.supervisor
-                              ? 'Continue as Supervisor'
-                              : 'Continue as Worker',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
+                    const SizedBox(height: 8),
+                    Text(
+                      'Choose a portal. Your trusted account\nassignment controls access.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: subtitleSize,
+                        height: 1.35,
+                        fontWeight: FontWeight.w500,
+                        color: subtitleColor,
+                      ),
+                    ),
+                    SizedBox(height: (h * 0.03).clamp(14.0, 22.0)),
+                    _RoleCard(
+                      title: 'Supervisor',
+                      description:
+                          'Monitor workers, receive\nalerts, manage helmets',
+                      leading: Icons.supervisor_account,
+                      chips: const ['Live dashboard', 'GPS map', 'Alerts'],
+                      selected: _role == UserRole.supervisor,
+                      onTap: () => setState(() => _role = UserRole.supervisor),
+                      cardBg: cardBg,
+                      chipBg: chipBg,
+                      chipText: chipText,
+                      borderColor: cardBorder,
+                    ),
+                    SizedBox(height: (h * 0.02).clamp(12.0, 16.0)),
+                    _DividerOr(color: Colors.white.withValues(alpha: 0.18)),
+                    SizedBox(height: (h * 0.02).clamp(12.0, 16.0)),
+                    _RoleCard(
+                      title: 'Worker',
+                      description: 'View your own\nhelmet status and\nalerts',
+                      leading: Icons.badge_outlined,
+                      chips: const ['Status view', 'My alerts'],
+                      selected: _role == UserRole.worker,
+                      onTap: () => setState(() => _role = UserRole.worker),
+                      cardBg: cardBg,
+                      chipBg: chipBg,
+                      chipText: chipText,
+                      borderColor: cardBorder,
+                    ),
+                    SizedBox(height: (h * 0.03).clamp(16.0, 28.0)),
+                    _SelectedRolePill(role: _role),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: (h * 0.065).clamp(48.0, 56.0),
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: buttonBg,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
                           ),
+                          elevation: 0,
                         ),
-                        const SizedBox(width: 10),
-                        const Icon(Icons.arrow_forward_rounded, size: 20),
-                      ],
+                        onPressed: _continueToLogin,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              _role == UserRole.supervisor
+                                  ? 'Continue as Supervisor'
+                                  : 'Continue as Worker',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Icon(Icons.arrow_forward_rounded, size: 20),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 14),
+                  ],
                 ),
-                const SizedBox(height: 14),
-              ],
+              ),
             ),
           ),
         ),
@@ -169,7 +186,7 @@ class _AppMark extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             blurRadius: 18,
-            color: iconBg.withOpacity(0.25),
+            color: iconBg.withValues(alpha: 0.25),
             offset: const Offset(0, 10),
           ),
         ],
@@ -216,10 +233,12 @@ class _RoleCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: cardBg.withOpacity(selected ? 0.96 : 0.82),
+          color: cardBg.withValues(alpha: selected ? 0.96 : 0.82),
           borderRadius: BorderRadius.circular(radius),
           border: Border.all(
-            color: selected ? borderColor : Colors.white.withOpacity(0.12),
+            color: selected
+                ? borderColor
+                : Colors.white.withValues(alpha: 0.12),
             width: borderW,
           ),
         ),
@@ -261,7 +280,11 @@ class _RoleCard extends StatelessWidget {
                             color: const Color(0xFF2F80ED),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.check, size: 16, color: Colors.white),
+                          child: const Icon(
+                            Icons.check,
+                            size: 16,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ],
@@ -270,7 +293,7 @@ class _RoleCard extends StatelessWidget {
                   Text(
                     description,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.55),
+                      color: Colors.white.withValues(alpha: 0.55),
                       fontSize: 12,
                       height: 1.25,
                       fontWeight: FontWeight.w600,
@@ -283,7 +306,10 @@ class _RoleCard extends StatelessWidget {
                     children: chips
                         .map(
                           (t) => Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
                               color: chipBg,
                               borderRadius: BorderRadius.circular(999),
@@ -324,7 +350,7 @@ class _DividerOr extends StatelessWidget {
         Text(
           'or',
           style: TextStyle(
-            color: Colors.white.withOpacity(0.38),
+            color: Colors.white.withValues(alpha: 0.38),
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -348,18 +374,18 @@ class _SelectedRolePill extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.14),
+        color: Colors.black.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
       child: Row(
         children: [
           const Icon(Icons.circle, size: 8, color: Color(0xFF2F80ED)),
           const SizedBox(width: 10),
           Text(
-            'Selected role: ',
+            'Portal preference: ',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.55),
+              color: Colors.white.withValues(alpha: 0.55),
               fontWeight: FontWeight.w600,
               fontSize: 12,
             ),
@@ -377,4 +403,3 @@ class _SelectedRolePill extends StatelessWidget {
     );
   }
 }
-

@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 
 class SplashScreen extends StatefulWidget {
   final WidgetBuilder builder;
+
   /// If null, the splash screen won't automatically navigate away.
   final Duration? duration;
+
   /// If false, the small loading line stays fixed (useful for screenshot-exact UI).
   final bool animateLoadingLine;
 
@@ -20,7 +22,8 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _progressController;
 
   @override
@@ -40,9 +43,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     if (widget.duration != null) {
       Timer(widget.duration!, () {
         if (!mounted) return;
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: widget.builder),
-        );
+        Navigator.of(
+          context,
+        ).pushReplacement(MaterialPageRoute(builder: widget.builder));
       });
     }
   }
@@ -120,7 +123,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     ),
                     SizedBox(height: height * 0.025),
                     Text(
-                      'v1.0.0 - Secure - Firebase Powered',
+                      'v1.0.0 • Secure live monitoring foundation',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: (width * 0.031).clamp(10.0, 12.0),
@@ -144,10 +147,7 @@ class _IconBadge extends StatelessWidget {
   final Color iconBg;
   final double size;
 
-  const _IconBadge({
-    required this.iconBg,
-    required this.size,
-  });
+  const _IconBadge({required this.iconBg, required this.size});
 
   @override
   Widget build(BuildContext context) {
@@ -165,19 +165,15 @@ class _IconBadge extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             blurRadius: 12,
-            color: iconBg.withOpacity(0.22),
+            color: iconBg.withValues(alpha: 0.22),
             offset: const Offset(0, 6),
-          )
+          ),
         ],
       ),
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Icon(
-            Icons.shield,
-            size: iconSize,
-            color: Colors.white,
-          ),
+          Icon(Icons.shield, size: iconSize, color: Colors.white),
           // Small exclamation mark to mimic the "alert/helmet" look.
           Positioned(
             bottom: bangBottom,
@@ -187,7 +183,7 @@ class _IconBadge extends StatelessWidget {
                 fontSize: bangSize,
                 height: 1.0,
                 fontWeight: FontWeight.w800,
-                color: Colors.white.withOpacity(0.95),
+                color: Colors.white.withValues(alpha: 0.95),
               ),
             ),
           ),
@@ -230,7 +226,7 @@ class _LoadingIndicator extends StatelessWidget {
                 height: height,
                 width: baseWidth,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.12),
+                  color: Colors.white.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(height),
                 ),
               ),
@@ -252,4 +248,3 @@ class _LoadingIndicator extends StatelessWidget {
     );
   }
 }
-
