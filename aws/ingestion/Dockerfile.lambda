@@ -1,0 +1,9 @@
+FROM public.ecr.aws/lambda/nodejs:22
+
+COPY aws/ingestion/package.json aws/ingestion/package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY aws/ingestion ${LAMBDA_TASK_ROOT}/aws/ingestion
+COPY functions/src ${LAMBDA_TASK_ROOT}/functions/src
+
+CMD ["aws/ingestion/handler.handler"]

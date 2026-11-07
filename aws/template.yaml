@@ -46,17 +46,12 @@ Resources:
   IngestionFunction:
     Type: AWS::Serverless::Function
     Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        EntryPoints: [aws/ingestion/handler.js]
-        Minify: true
-        Sourcemap: false
-        Target: es2022
+      DockerContext: ..
+      Dockerfile: aws/ingestion/Dockerfile.lambda
+      DockerTag: phase-c-v1
     Properties:
       FunctionName: !Sub smart-safety-${EnvironmentName}-ingestion
-      CodeUri: ..
-      Handler: aws/ingestion/handler.handler
-      Runtime: nodejs22.x
+      PackageType: Image
       Architectures: [x86_64]
       MemorySize: 512
       Timeout: 25

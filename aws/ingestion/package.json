@@ -6,7 +6,7 @@
     "node": "22"
   },
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/api_adapter.test.js test/lambda_inference_client.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-lambda": "3.1164.0",

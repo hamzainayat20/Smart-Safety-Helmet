@@ -52,7 +52,7 @@ sam validate --lint --template-file aws/template.yaml
 sam build --template-file aws/template.yaml
 ```
 
-The image build uses Docker only during deployment preparation. It does not
+The Lambda image builds use Docker only during deployment preparation. It does not
 need to remain running after the image has been uploaded.
 
 ## Deployment review gate

@@ -1,0 +1,32 @@
+# Keep the AWS inference image context small and deterministic.
+# The Lambda image needs only its Docker definition, Python dependencies,
+# and inference-service source code.
+**
+!aws/
+!aws/inference/
+!aws/inference/Dockerfile.lambda
+!aws/inference/requirements.lambda.txt
+!aws/ingestion/
+!aws/ingestion/*.js
+!aws/ingestion/package.json
+!aws/ingestion/package-lock.json
+!aws/ingestion/Dockerfile.lambda
+!functions/
+!functions/src/
+!functions/src/**
+!inference_service/
+!inference_service/**
+
+# Never copy host-installed dependencies or generated caches into Linux images.
+**/node_modules
+**/node_modules/**
+**/__pycache__
+**/__pycache__/**
+**/.pytest_cache
+**/.pytest_cache/**
+**/.venv
+**/.venv/**
+functions/test
+functions/test/**
+inference_service/tests
+inference_service/tests/**
