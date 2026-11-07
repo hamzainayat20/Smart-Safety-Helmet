@@ -54,6 +54,9 @@ functions/.secret.local
 .npm-cache/
 .tool-appdata/
 .tool-config/
+.aws-sam/
+aws/configuration-secret.json
+aws/samconfig.toml
 emulator-test.tap
 firebase.emulator.local.json
 

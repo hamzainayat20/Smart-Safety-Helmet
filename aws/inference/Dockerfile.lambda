@@ -1,0 +1,8 @@
+FROM public.ecr.aws/lambda/python:3.12
+
+COPY aws/inference/requirements.lambda.txt ${LAMBDA_TASK_ROOT}/requirements.txt
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt
+
+COPY inference_service ${LAMBDA_TASK_ROOT}/inference_service
+
+CMD ["inference_service.app.lambda_handler.handler"]

@@ -1,0 +1,21 @@
+{
+  "name": "smart-safety-aws-ingestion",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-lambda": "3.1164.0",
+    "@aws-sdk/client-ssm": "3.1164.0",
+    "firebase-admin": "14.5.0"
+  },
+  "overrides": {
+    "glob": "14.0.4",
+    "minimatch": "11.0.5",
+    "rimraf": "6.1.4"
+  }
+}

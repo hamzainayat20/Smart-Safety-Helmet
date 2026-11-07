@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Smart Safety staging telemetry ingestion and private model inference.
+
+Parameters:
+  FirebaseDatabaseUrl:
+    Type: String
+    Description: Exact Firebase Realtime Database URL.
+  ConfigurationParameterName:
+    Type: String
+    Description: Name of the encrypted standard SSM configuration parameter.
+  EnvironmentName:
+    Type: String
+    Default: staging
+    AllowedValues: [staging]
+
+Globals:
+  Function:
+    Tags:
+      Project: smart-safety
+      Environment: !Ref EnvironmentName
+
+Resources:
+  TelemetryApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref EnvironmentName
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 5
+        ThrottlingRateLimit: 1
+
+  InferenceFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      DockerContext: ..
+      Dockerfile: aws/inference/Dockerfile.lambda
+      DockerTag: phase-c-v1
+    Properties:
+      FunctionName: !Sub smart-safety-${EnvironmentName}-inference
+      PackageType: Image
+      Architectures: [x86_64]
+      MemorySize: 1024
+      Timeout: 20
+      ReservedConcurrentExecutions: 2
+
+  IngestionFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [aws/ingestion/handler.js]
+        Minify: true
+        Sourcemap: false
+        Target: es2022
+    Properties:
+      FunctionName: !Sub smart-safety-${EnvironmentName}-ingestion
+      CodeUri: ..
+      Handler: aws/ingestion/handler.handler
+      Runtime: nodejs22.x
+      Architectures: [x86_64]
+      MemorySize: 512
+      Timeout: 25
+      ReservedConcurrentExecutions: 2
+      Environment:
+        Variables:
+          CONFIGURATION_PARAMETER_NAME: !Ref ConfigurationParameterName
+          FIREBASE_DATABASE_URL: !Ref FirebaseDatabaseUrl
+          INFERENCE_FUNCTION_NAME: !Ref InferenceFunction
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref InferenceFunction
+        - SSMParameterReadPolicy:
+            ParameterName: !Ref ConfigurationParameterName
+      Events:
+        Telemetry:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TelemetryApi
+            Method: POST
+            Path: /v1/telemetry
+
+  InferenceLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/smart-safety-${EnvironmentName}-inference
+      RetentionInDays: 7
+
+  IngestionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/smart-safety-${EnvironmentName}-ingestion
+      RetentionInDays: 7
+
+Outputs:
+  TelemetryEndpoint:
+    Description: Signed staging telemetry endpoint. Never embed backend credentials.
+    Value: !Sub https://${TelemetryApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${EnvironmentName}/v1/telemetry
+  InferenceFunctionName:
+    Value: !Ref InferenceFunction
