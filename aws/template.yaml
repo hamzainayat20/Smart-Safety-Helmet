@@ -62,7 +62,7 @@ Resources:
       Policies:
         - LambdaInvokePolicy:
             FunctionName: !Ref InferenceFunction
-        - SSMParameterReadPolicy:
+        - SSMParameterWithSlashPrefixReadPolicy:
             ParameterName: !Ref ConfigurationParameterName
       Events:
         Telemetry:
