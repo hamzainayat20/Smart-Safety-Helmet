@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'application/dashboard_view_model.dart';
 import 'domain/models.dart';
 import 'presentation/formatters.dart';
+import 'presentation/assessment_history_panel.dart';
 import 'presentation/monitoring_state.dart';
 import 'presentation/safety_assessment_card.dart';
 
@@ -74,6 +75,12 @@ class SensorDetailScreen extends StatelessWidget {
                               SafetyAssessmentCard(
                                 reading: reading,
                                 assessment: viewModel.assessmentFor(helmetId),
+                              ),
+                              const SizedBox(height: 12),
+                              AssessmentHistoryPanel(
+                                repository: viewModel.dependencies.assessments,
+                                actor: viewModel.profile,
+                                helmetId: helmetId,
                               ),
                               const SizedBox(height: 12),
                               _buildBatteryCard(reading),

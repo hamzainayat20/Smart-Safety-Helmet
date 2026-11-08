@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_safety/data/mock_repositories.dart';
 import 'package:smart_safety/domain/models.dart';
 import 'package:smart_safety/presentation/safety_assessment_card.dart';
+import 'package:smart_safety/presentation/assessment_history_panel.dart';
 
 Map<String, dynamic> canonicalAssessment({
   String eventId = 'event-1',
@@ -169,5 +170,31 @@ void main() {
 
     expect(find.text('OUT OF RANGE'), findsOneWidget);
     expect(find.text('SAFE'), findsNothing);
+  });
+
+  testWidgets('assessment history shows risk, evidence, timestamp and advice', (
+    tester,
+  ) async {
+    final data = MockDataSet.currentDemo(
+      referenceTimeUtc: DateTime.utc(2026, 8, 2, 12),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AssessmentHistoryPanel(
+            repository: MockAssessmentRepository(data),
+            actor: data.users['worker-ali']!,
+            helmetId: 'H-03',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('RECENT AI ASSESSMENTS'), findsOneWidget);
+    expect(find.text('SAFE'), findsOneWidget);
+    expect(find.textContaining('Fall:'), findsOneWidget);
+    expect(find.textContaining('UTC'), findsOneWidget);
+    expect(find.textContaining('No immediate action'), findsOneWidget);
   });
 }

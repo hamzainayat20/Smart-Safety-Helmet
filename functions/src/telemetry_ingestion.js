@@ -132,6 +132,22 @@ async function reconcileCurrent(database, payload, record) {
       incomingShouldReplaceCurrent(current, record) ? record : undefined));
 }
 
+async function markHelmetOnline(database, helmetId, now) {
+  const reference = database.ref(`helmets/${helmetId}/meta`);
+  await backendStage('PRESENCE_STORAGE_ERROR', () =>
+    reference.transaction((current) => {
+      if (!current || typeof current !== 'object') return;
+      const previousLastSeenAt = Number.isSafeInteger(current.lastSeenAt)
+        ? current.lastSeenAt
+        : 0;
+      return {
+        ...current,
+        connectivity: 'online',
+        lastSeenAt: Math.max(previousLastSeenAt, now),
+      };
+    }));
+}
+
 async function markEventStored(reservation, hash) {
   // The reservation has already bound eventId to semanticHash. A narrow update
   // avoids RTDB transaction callbacks aborting on an initially empty local
@@ -212,6 +228,10 @@ export function createTelemetryIngestionHandler({
       });
       await ensureHistory(database, payload, record);
       await reconcileCurrent(database, payload, record);
+      // A successfully authenticated request is authoritative evidence that
+      // the provisioned device is currently reachable. Keep administrative
+      // helmet metadata intact while updating only its runtime presence.
+      await markHelmetOnline(database, payload.helmetId, now);
       await markEventStored(reservation, hash);
       response.status(reservation.duplicate ? 200 : 202).json({
         eventId: payload.eventId,
