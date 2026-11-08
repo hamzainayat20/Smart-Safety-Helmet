@@ -152,7 +152,7 @@ void main() {
     session.dispose();
   });
 
-  test('verification delivery failure keeps the created worker', () async {
+  test('worker registration does not request email verification', () async {
     dependencies = buildDependencies(failVerificationEmail: true);
     final session = SessionController(dependencies);
 
@@ -164,7 +164,8 @@ void main() {
     );
 
     expect(result.succeeded, isTrue);
-    expect(result.message, contains('Resend verification'));
+    expect(result.message, 'Worker account created. You can sign in now.');
+    expect(authentication.verificationEmailCount, 0);
     expect(authentication.deletedCurrentUserCount, 0);
     expect(
       data.users.values.any(

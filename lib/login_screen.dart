@@ -73,29 +73,6 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  Future<void> _handleResendVerification() async {
-    if (_emailController.text.trim().isEmpty ||
-        _passwordController.text.isEmpty) {
-      setState(
-        () => _result = const SessionActionResult.failure(
-          SessionIssue.invalidCredentials,
-          'Enter your email and password to request another verification email.',
-        ),
-      );
-      return;
-    }
-    setState(() => _isLoading = true);
-    final result = await widget.session.resendVerification(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-    );
-    if (!mounted) return;
-    setState(() {
-      _isLoading = false;
-      _result = result;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     const bgTop = Color(0xFF0B1C3A);
@@ -256,39 +233,22 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ],
                         const SizedBox(height: 10),
-                        Wrap(
-                          alignment: WrapAlignment.spaceBetween,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            TextButton(
-                              key: const Key('resend-verification'),
-                              onPressed: _isLoading
-                                  ? null
-                                  : _handleResendVerification,
-                              child: const Text(
-                                'Send/Resend verification email',
-                                style: TextStyle(
-                                  color: accent,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            key: const Key('forgot-password'),
+                            onPressed: _isLoading
+                                ? null
+                                : _handlePasswordReset,
+                            child: const Text(
+                              'Forgot password?',
+                              style: TextStyle(
+                                color: accent,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
                               ),
                             ),
-                            TextButton(
-                              key: const Key('forgot-password'),
-                              onPressed: _isLoading
-                                  ? null
-                                  : _handlePasswordReset,
-                              child: const Text(
-                                'Forgot password?',
-                                style: TextStyle(
-                                  color: accent,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                         const SizedBox(height: 6),
                         SizedBox(

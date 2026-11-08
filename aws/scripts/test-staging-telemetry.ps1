@@ -3,7 +3,9 @@ param(
   [string]$Endpoint = 'https://3sqh6oq2i5.execute-api.us-east-1.amazonaws.com/staging/v1/telemetry',
   [string]$Profile = 'smart-safety',
   [string]$Region = 'us-east-1',
-  [string]$ParameterName = '/smart-safety/staging/configuration'
+  [string]$ParameterName = '/smart-safety/staging/configuration',
+  [ValidateSet('Safe', 'Gas', 'Fall')]
+  [string]$Scenario = 'Safe'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,14 +40,15 @@ try {
   $random.Dispose()
 }
 $nonce = [Convert]::ToBase64String($nonceBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
-$eventId = "aws_smoke_${timestamp}"
+$scenarioId = $Scenario.ToLowerInvariant()
+$eventId = "aws_${scenarioId}_${timestamp}"
 
 $payload = [ordered]@{
   schemaVersion = '2.0'
   eventId = $eventId
   helmetId = 'helmet001'
   deviceTimestamp = $timestamp
-  firmwareVersion = 'aws-smoke.1'
+  firmwareVersion = 'aws-simulator.1'
   sensorFaults = @('gpsUnavailable', 'batteryUnavailable')
   mq7Raw = 575
   mq135Raw = 443
@@ -74,6 +77,37 @@ $payload = [ordered]@{
   samplingRateHz = 50
   windowSamples = 100
   windowEndTimestamp = $timestamp
+}
+
+$expectedAssessment = 'SAFE with no modeled hazard'
+switch ($Scenario) {
+  'Gas' {
+    # Verified locally against the packaged gas model as Smoke (> 0.90 confidence).
+    $payload['mq7Raw'] = 536
+    $payload['mq135Raw'] = 275
+    $expectedAssessment = 'CRITICAL Smoke hazard'
+  }
+  'Fall' {
+    # Verified locally against the packaged fall model above its 0.46 threshold.
+    $payload['accelXG'] = 0.2
+    $payload['accelYG'] = 0.3
+    $payload['accelZG'] = 2.0
+    $payload['gyroXDegreesPerSecond'] = 180.0
+    $payload['gyroYDegreesPerSecond'] = 220.0
+    $payload['gyroZDegreesPerSecond'] = 200.0
+    $payload['fallFeatures'] = [ordered]@{
+      acc_mean = 0.8
+      acc_std = 0.8
+      acc_min = 0.0
+      acc_max = 3.0
+      gyro_mean = 25.0
+      gyro_std = 50.0
+      gyro_max = 200.0
+      jerk_mean = 5.0
+      jerk_max = 50.0
+    }
+    $expectedAssessment = 'CRITICAL Fall detected'
+  }
 }
 
 $body = $payload | ConvertTo-Json -Depth 10 -Compress
@@ -119,6 +153,8 @@ $response = Invoke-RestMethod `
 [ordered]@{
   result = 'PASS'
   endpoint = $Endpoint
+  scenario = $Scenario
+  expectedAssessment = $expectedAssessment
   eventId = $eventId
   helmetId = 'helmet001'
   apiResponse = $response

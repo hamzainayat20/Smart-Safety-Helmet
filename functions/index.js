@@ -101,9 +101,6 @@ function callableError(error) {
 
 async function requireActiveUser(request, allowedRoles) {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication is required.');
-  if (request.auth.token.email_verified !== true) {
-    throw new HttpsError('permission-denied', 'A verified email is required.');
-  }
   const uid = request.auth.uid;
   const snapshot = await database.ref(`users/${uid}`).get();
   const user = snapshot.val();

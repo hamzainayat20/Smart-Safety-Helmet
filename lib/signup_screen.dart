@@ -200,11 +200,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           textInputAction: TextInputAction.next,
                         ),
                         const SizedBox(height: 14),
-                        _FieldLabel('Work email'),
+                        _FieldLabel('Email address'),
                         const SizedBox(height: 8),
                         _Input(
                           controller: _emailController,
-                          hintText: 'name@company.com',
+                          hintText: 'name@example.com',
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
                         ),

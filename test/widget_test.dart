@@ -121,12 +121,12 @@ void main() {
     session.dispose();
   });
 
-  testWidgets('login can send a verification email on request', (tester) async {
+  testWidgets('login does not offer email verification while disabled', (
+    tester,
+  ) async {
     final dependencies = AppDependencies.allMocks(
       unverifiedUids: const {'supervisor-demo'},
     );
-    final authentication =
-        dependencies.authentication as MockAuthenticationRepository;
     final session = SessionController(dependencies)..start();
 
     await tester.pumpWidget(
@@ -135,21 +135,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byType(TextField).first,
-      'supervisor@example.test',
-    );
-    await tester.enterText(find.byType(TextField).last, 'password');
-    final resend = find.byKey(const Key('resend-verification'));
-    await tester.ensureVisible(resend);
-    await tester.tap(resend);
-    await tester.pumpAndSettle();
-
-    expect(authentication.verificationEmailCount, 1);
-    expect(
-      find.text('A new verification email has been sent.'),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('resend-verification')), findsNothing);
+    expect(find.textContaining('verification email'), findsNothing);
+    expect(find.byKey(const Key('forgot-password')), findsOneWidget);
     session.dispose();
   });
 
