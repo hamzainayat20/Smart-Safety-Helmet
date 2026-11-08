@@ -41,7 +41,6 @@ Resources:
       Architectures: [x86_64]
       MemorySize: 1024
       Timeout: 20
-      ReservedConcurrentExecutions: 2
 
   IngestionFunction:
     Type: AWS::Serverless::Function
@@ -55,7 +54,6 @@ Resources:
       Architectures: [x86_64]
       MemorySize: 512
       Timeout: 25
-      ReservedConcurrentExecutions: 2
       Environment:
         Variables:
           CONFIGURATION_PARAMETER_NAME: !Ref ConfigurationParameterName

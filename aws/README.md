@@ -62,7 +62,8 @@ Before running `sam deploy --guided`, review:
 1. Region and current AWS credit expiry.
 2. The CloudFormation change set.
 3. API Gateway throttling: 1 request/second with a burst of 5.
-4. Lambda reserved concurrency: 2 for each function.
+4. API Gateway throttling protects this low-quota staging account; Lambda
+   reserved concurrency is intentionally unset.
 5. Seven-day CloudWatch retention.
 6. The exact SecureString parameter name and Firebase staging database URL.
 7. No production data, credentials, or physical-hardware claims.
