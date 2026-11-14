@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../domain/models.dart';
+import 'components/state_view.dart';
+import 'design_system/safety_status.dart';
 
-Color monitoringStateColor(MonitoringState state) => switch (state) {
-  MonitoringState.safe => Colors.green,
-  MonitoringState.warning || MonitoringState.warmingUp => Colors.orange,
-  MonitoringState.critical || MonitoringState.sensorFault => Colors.red,
-  MonitoringState.permissionDenied => const Color(0xFF9B1C1C),
-  MonitoringState.backendError => const Color(0xFF8A4B08),
-  _ => Colors.grey,
-};
+/// Indicator colour for [state] on light surfaces (≥ 3:1), from the design
+/// system's status roles. Pair it with [monitoringStateIcon] and a text label.
+Color monitoringStateColor(MonitoringState state) =>
+    safetyStatusForMonitoringState(state).palette.strong;
 
 IconData monitoringStateIcon(MonitoringState state) => switch (state) {
   MonitoringState.loading => Icons.hourglass_top_rounded,
@@ -60,44 +58,30 @@ class MonitoringStatePanel extends StatelessWidget {
   final String? message;
   final Future<void> Function()? onRetry;
 
+  StateViewKind get _kind => switch (state) {
+    MonitoringState.loading => StateViewKind.loading,
+    MonitoringState.permissionDenied => StateViewKind.permissionDenied,
+    MonitoringState.backendError => StateViewKind.error,
+    MonitoringState.offline => StateViewKind.offline,
+    MonitoringState.stale => StateViewKind.stale,
+    _ => StateViewKind.empty,
+  };
+
   @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              monitoringStateIcon(state),
-              color: monitoringStateColor(state),
-              size: 34,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              message ?? monitoringStateDescription(state),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.black54, height: 1.35),
-            ),
-            if (onRetry != null) ...[
-              const SizedBox(height: 12),
-              OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
-            ],
-          ],
-        ),
-      ),
-    ),
+  Widget build(BuildContext context) => StateView(
+    kind: _kind,
+    title: title,
+    message: message ?? monitoringStateDescription(state),
+    onAction: onRetry,
   );
 }
+
+IconData alertTypeIcon(AlertType type) => switch (type) {
+  AlertType.temperature => Icons.thermostat_rounded,
+  AlertType.humidity => Icons.water_drop_outlined,
+  AlertType.battery => Icons.battery_alert_rounded,
+  AlertType.fall => Icons.personal_injury_outlined,
+  AlertType.sensorFault => Icons.sensors_off_outlined,
+  AlertType.connectivity => Icons.wifi_off_outlined,
+  AlertType.gas => Icons.air_rounded,
+};

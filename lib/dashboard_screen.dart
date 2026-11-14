@@ -7,6 +7,7 @@ import 'application/session_controller.dart';
 import 'domain/models.dart';
 import 'gps_map_page.dart';
 import 'helmets_page.dart';
+import 'presentation/design_system/design_system.dart';
 import 'supervisor_dashboard_page.dart';
 import 'user_role.dart';
 import 'worker_alerts_page.dart';
@@ -62,9 +63,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
+  List<AppNavItem> _navItems(bool isSupervisor) {
+    if (isSupervisor) {
+      return [
+        const AppNavItem(
+          icon: Icons.space_dashboard_outlined,
+          selectedIcon: Icons.space_dashboard_rounded,
+          label: 'Dashboard',
+        ),
+        const AppNavItem(
+          icon: Icons.map_outlined,
+          selectedIcon: Icons.map_rounded,
+          label: 'GPS Map',
+        ),
+        AppNavItem(
+          icon: Icons.notifications_none_rounded,
+          selectedIcon: Icons.notifications_rounded,
+          label: 'Alerts',
+          badgeCount: _viewModel.activeAlertCount,
+        ),
+        const AppNavItem(
+          icon: Icons.engineering_outlined,
+          selectedIcon: Icons.engineering_rounded,
+          label: 'Helmets',
+        ),
+      ];
+    }
+    final openAlerts = _viewModel.alerts
+        .where((alert) => alert.status != AlertStatus.resolved)
+        .length;
+    return [
+      const AppNavItem(
+        icon: Icons.health_and_safety_outlined,
+        selectedIcon: Icons.health_and_safety_rounded,
+        label: 'Status',
+      ),
+      AppNavItem(
+        icon: Icons.notifications_none_rounded,
+        selectedIcon: Icons.notifications_rounded,
+        label: 'My Alerts',
+        badgeCount: openAlerts,
+      ),
+      const AppNavItem(
+        icon: Icons.person_outline_rounded,
+        selectedIcon: Icons.person_rounded,
+        label: 'Profile',
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
-    const bgBottom = Color(0xFF07152C);
     final isSupervisor = widget.profile.role == UserRole.supervisor;
 
     final pages = isSupervisor
@@ -72,6 +121,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             SupervisorDashboardPage(
               viewModel: _viewModel,
               onSignOut: widget.session.signOut,
+              onLocate: widget.mapFocusController.focus,
             ),
             GpsMapPage(
               viewModel: _viewModel,
@@ -91,6 +141,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             WorkerDashboardPage(
               viewModel: _viewModel,
               onSignOut: widget.session.signOut,
+              onOpenAlerts: () => setState(() => _currentIndex = 1),
             ),
             WorkerAlertsPage(viewModel: _viewModel),
             WorkerProfilePage(
@@ -99,58 +150,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ];
 
-    final navItems = isSupervisor
-        ? const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_outlined, size: 20),
-              label: 'Dashboard',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.location_on_outlined, size: 20),
-              label: 'GPS Map',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.notifications_none_rounded, size: 20),
-              label: 'Alerts',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.settings_input_component_outlined, size: 20),
-              label: 'Helmets',
-            ),
-          ]
-        : const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined, size: 20),
-              label: 'Status',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.notifications_none_rounded, size: 20),
-              label: 'My Alerts',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline, size: 20),
-              label: 'Profile',
-            ),
-          ];
-
     if (_currentIndex >= pages.length) _currentIndex = 0;
 
-    return Scaffold(
-      backgroundColor: bgBottom,
-      body: pages[_currentIndex],
-      bottomNavigationBar: Theme(
-        data: Theme.of(context).copyWith(canvasColor: bgBottom),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFF2F80ED),
-          unselectedItemColor: Colors.white.withValues(alpha: 0.5),
-          selectedFontSize: 10,
-          unselectedFontSize: 10,
-          items: navItems,
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= kNavigationRailBreakpoint;
+        final navigation = AnimatedBuilder(
+          animation: _viewModel,
+          builder: (context, _) {
+            final items = _navItems(isSupervisor);
+            void select(int index) => setState(() => _currentIndex = index);
+            return wide
+                ? AppNavigationRail(
+                    items: items,
+                    currentIndex: _currentIndex,
+                    onSelected: select,
+                  )
+                : AppNavigationBar(
+                    items: items,
+                    currentIndex: _currentIndex,
+                    onSelected: select,
+                  );
+          },
+        );
+        final page = pages[_currentIndex];
+        return Scaffold(
+          backgroundColor: AppColors.ink,
+          body: wide
+              ? Row(
+                  children: [
+                    navigation,
+                    Expanded(child: page),
+                  ],
+                )
+              : page,
+          bottomNavigationBar: wide ? null : navigation,
+        );
+      },
     );
   }
 }

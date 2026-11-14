@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 
 import 'application/dashboard_view_model.dart';
 import 'domain/models.dart';
+import 'presentation/design_system/design_system.dart';
 import 'presentation/formatters.dart';
 import 'presentation/monitoring_state.dart';
+import 'presentation/sensor_limits.dart';
 import 'sensor_detail_screen.dart';
 
-class HelmetsPage extends StatelessWidget {
+class HelmetsPage extends StatefulWidget {
   const HelmetsPage({
     super.key,
     required this.viewModel,
@@ -17,35 +19,128 @@ class HelmetsPage extends StatelessWidget {
   final VoidCallback onSignOut;
 
   @override
+  State<HelmetsPage> createState() => _HelmetsPageState();
+}
+
+enum HelmetFilter { all, attention, noLiveData }
+
+class _HelmetsPageState extends State<HelmetsPage> {
+  final _searchController = TextEditingController();
+  String _query = '';
+  HelmetFilter _filter = HelmetFilter.all;
+
+  DashboardViewModel get viewModel => widget.viewModel;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _clearFilters() => setState(() {
+    _searchController.clear();
+    _query = '';
+    _filter = HelmetFilter.all;
+  });
+
+  bool _matchesFilter(Helmet helmet) {
+    final status = safetyStatusForMonitoringState(
+      viewModel.monitoringStateFor(helmet),
+    );
+    return switch (_filter) {
+      HelmetFilter.all => true,
+      HelmetFilter.attention =>
+        status.needsAttention || status == SafetyStatus.pending,
+      HelmetFilter.noLiveData =>
+        status == SafetyStatus.offline ||
+            status == SafetyStatus.stale ||
+            status == SafetyStatus.unknown,
+    };
+  }
+
+  bool _matchesQuery(Helmet helmet) {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) return true;
+    return [
+      helmet.helmetId,
+      viewModel.workerNameFor(helmet),
+      helmet.zone ?? '',
+      viewModel.siteNameFor(helmet),
+    ].join(' ').toLowerCase().contains(query);
+  }
+
+  @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: viewModel,
     builder: (context, _) => SafeArea(
+      bottom: false,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildHeader(),
-          _buildSearchBar(),
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.only(top: 20),
-              decoration: const BoxDecoration(
-                color: Color(0xFFF4F6FA),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
-                ),
-              ),
-              child: _buildBody(),
-            ),
-          ),
+          Expanded(child: ContentSheet(child: _buildBody())),
         ],
       ),
     ),
   );
 
+  Widget _buildHeader() {
+    final active = viewModel.activeHelmets.length;
+    return AppPageHeader(
+      eyebrow: 'FLEET',
+      title: 'Helmet Management',
+      subtitle:
+          '${viewModel.helmets.length} registered • $active active • '
+          '${viewModel.helmets.length - active} inactive • ${viewModel.dataSourceLabel}',
+      actions: [
+        HeaderIconButton(
+          icon: Icons.logout_rounded,
+          tooltip: 'Sign out',
+          onPressed: widget.onSignOut,
+        ),
+      ],
+      bottom: TextField(
+        controller: _searchController,
+        onChanged: (value) => setState(() => _query = value),
+        textInputAction: TextInputAction.search,
+        style: AppTypography.body.copyWith(color: AppColors.textPrimary),
+        decoration: InputDecoration(
+          hintText: 'Search helmet ID or worker...',
+          prefixIcon: const Icon(
+            Icons.search_rounded,
+            size: AppSizes.iconMd,
+            color: AppColors.textSecondary,
+          ),
+          suffixIcon: _query.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  onPressed: () => setState(() {
+                    _searchController.clear();
+                    _query = '';
+                  }),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: AppSizes.iconMd,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBody() {
     if (viewModel.loadState == MonitoringState.loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const StateView(
+        kind: StateViewKind.loading,
+        title: 'Loading helmets',
+        message: 'Fetching your assigned helmets…',
+      );
     }
     if (viewModel.loadState == MonitoringState.permissionDenied ||
         viewModel.loadState == MonitoringState.backendError) {
@@ -65,268 +160,261 @@ class HelmetsPage extends StatelessWidget {
         message: 'No helmets are assigned to this supervisor.',
       );
     }
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: viewModel.sortedHelmets
-          .map(
-            (helmet) => _HelmetCard(
-              helmet: helmet,
-              workerName: viewModel.workerNameFor(helmet),
-              reading: viewModel.readingFor(helmet.helmetId),
-              stateLabel: viewModel.stateLabelFor(helmet),
-              monitoringState: viewModel.monitoringStateFor(helmet),
-              lastUpdatedAt: viewModel.lastUpdateFor(helmet),
-              viewModel: viewModel,
-            ),
-          )
-          .toList(growable: false),
-    );
-  }
 
-  Widget _buildHeader() {
-    final active = viewModel.activeHelmets.length;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(25, 20, 25, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Helmet Management',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
+    final visible = viewModel.sortedHelmets
+        .where((helmet) => _matchesFilter(helmet) && _matchesQuery(helmet))
+        .toList(growable: false);
+    final filtered = _query.isNotEmpty || _filter != HelmetFilter.all;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.xl,
+      ),
+      children: [
+        SegmentedFilter<HelmetFilter>(
+          values: HelmetFilter.values,
+          selected: _filter,
+          labelOf: (value) => switch (value) {
+            HelmetFilter.all => 'All',
+            HelmetFilter.attention => 'Attention',
+            HelmetFilter.noLiveData => 'No live data',
+          },
+          onSelected: (value) => setState(() => _filter = value),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  'Showing ${visible.length} of ${viewModel.helmets.length}',
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
-              IconButton(
-                onPressed: onSignOut,
-                icon: const Icon(Icons.logout, color: Colors.white, size: 20),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+            ),
+            if (filtered)
+              TextButton.icon(
+                onPressed: _clearFilters,
+                icon: const Icon(
+                  Icons.filter_alt_off_outlined,
+                  size: AppSizes.iconMd,
+                ),
+                label: const Text('Clear filters'),
               ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        if (visible.isEmpty)
+          StateView(
+            kind: StateViewKind.empty,
+            title: 'No matching helmets',
+            message: 'Try a different helmet ID, worker name or zone.',
+            actionLabel: 'Clear filters',
+            onAction: _clearFilters,
+          )
+        else
+          ResponsiveTileGrid(
+            minTileWidth: 340,
+            maxColumns: 2,
+            children: [
+              for (final helmet in visible)
+                _HelmetCard(
+                  helmet: helmet,
+                  workerName: viewModel.workerNameFor(helmet),
+                  siteName: viewModel.siteNameFor(helmet),
+                  reading: viewModel.readingFor(helmet.helmetId),
+                  stateLabel: viewModel.stateLabelFor(helmet),
+                  status: safetyStatusForMonitoringState(
+                    viewModel.monitoringStateFor(helmet),
+                  ),
+                  lastUpdatedAt: viewModel.lastUpdateFor(helmet),
+                  onOpen: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => SensorDetailScreen(
+                        helmetId: helmet.helmetId,
+                        workerName: viewModel.workerNameFor(helmet),
+                        viewModel: viewModel,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            '${viewModel.helmets.length} registered • $active active • '
-            '${viewModel.helmets.length - active} inactive • ${viewModel.dataSourceLabel}',
-            style: const TextStyle(
-              color: Color(0xFF77A6D7),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
-
-  Widget _buildSearchBar() => Padding(
-    padding: const EdgeInsets.fromLTRB(25, 20, 25, 0),
-    child: TextField(
-      decoration: InputDecoration(
-        hintText: 'Search helmet ID or worker...',
-        hintStyle: TextStyle(
-          color: Colors.black.withValues(alpha: 0.3),
-          fontSize: 13,
-        ),
-        prefixIcon: Icon(
-          Icons.search,
-          color: Colors.black.withValues(alpha: 0.3),
-          size: 20,
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(vertical: 0),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    ),
-  );
 }
 
 class _HelmetCard extends StatelessWidget {
   const _HelmetCard({
     required this.helmet,
     required this.workerName,
+    required this.siteName,
     required this.reading,
     required this.stateLabel,
-    required this.monitoringState,
+    required this.status,
     required this.lastUpdatedAt,
-    required this.viewModel,
+    required this.onOpen,
   });
+
   final Helmet helmet;
   final String workerName;
+  final String siteName;
   final SensorReading? reading;
   final String stateLabel;
-  final MonitoringState monitoringState;
+  final SafetyStatus status;
   final DateTime? lastUpdatedAt;
-  final DashboardViewModel viewModel;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = monitoringStateColor(monitoringState);
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => SensorDetailScreen(
-            helmetId: helmet.helmetId,
-            workerName: workerName,
-            viewModel: viewModel,
-          ),
-        ),
-      ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(Icons.engineering, color: statusColor, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Helmet ${helmet.helmetId}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 14,
-                        ),
+    final battery = reading?.batteryPct;
+    final batteryStatus = SensorLimits.battery(battery);
+    final updated = lastUpdatedAt;
+    return AppCard(
+      onTap: onOpen,
+      status: status.needsAttention ? status : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              IconTile(icon: Icons.engineering_outlined, status: status),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Helmet ${helmet.helmetId}',
+                      style: AppTypography.bodyStrong.copyWith(
+                        color: AppColors.textPrimary,
                       ),
-                      Text(
-                        '$workerName • ${viewModel.siteNameFor(helmet)} • '
-                        '${helmet.zone ?? 'Zone unavailable'}\n'
-                        '${lastUpdatedAt == null ? 'Never updated' : 'Last update ${formatRelativeTime(lastUpdatedAt!)}'}',
-                        style: TextStyle(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          fontSize: 11,
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    stateLabel,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
                     ),
-                  ),
+                    Text(
+                      '$workerName • $siteName • ${helmet.zone ?? 'Zone unavailable'}',
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      [
+                        updated == null
+                            ? 'Never updated'
+                            : 'Last update ${formatRelativeTime(updated)}',
+                        if (helmet.firmwareVersion != null)
+                          'FW ${helmet.firmwareVersion}',
+                      ].join(' • '),
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _metric(
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          StatusChip(status: status, label: stateLabel),
+          const SizedBox(height: AppSpacing.md),
+          const Divider(),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: _Reading(
                   formatMeasurement(
                     reading?.temperatureC,
                     SensorUnit.degreesCelsius,
                   ),
                   'Temp',
-                  statusColor,
                 ),
-                _metric(
+              ),
+              Expanded(
+                child: _Reading(
                   formatMeasurement(
                     reading?.humidityPct,
                     SensorUnit.percentRelativeHumidity,
                   ),
                   'Humidity',
-                  statusColor,
                 ),
-                _battery(reading?.batteryPct),
-              ],
-            ),
-          ],
-        ),
+              ),
+              Expanded(
+                child: _Reading(
+                  formatMeasurement(reading?.gasPpm, SensorUnit.partsPerMillion),
+                  'Gas',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Icon(
+                Icons.battery_std_rounded,
+                size: AppSizes.iconSm,
+                color: batteryStatus.palette.strong,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                formatMeasurement(battery, SensorUnit.percent, fractionDigits: 0),
+                style: AppTypography.label.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: ThresholdGauge(
+                  value: battery?.toDouble(),
+                  max: 100,
+                  warningAt: SensorLimits.batteryWarningPct.toDouble(),
+                  criticalAt: SensorLimits.batteryCriticalPct.toDouble(),
+                  status: batteryStatus,
+                  unit: '%',
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
+}
 
-  Widget _metric(String value, String label, Color color) => Column(
+class _Reading extends StatelessWidget {
+  const _Reading(this.value, this.label);
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(
-        value,
-        style: TextStyle(
-          fontWeight: FontWeight.w900,
-          fontSize: 15,
-          color: color,
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          value,
+          style: AppTypography.bodyStrong.copyWith(
+            color: value == 'Unavailable'
+                ? AppColors.textSecondary
+                : AppColors.textPrimary,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
       ),
       Text(
         label,
-        style: TextStyle(
-          color: Colors.black.withValues(alpha: 0.4),
-          fontSize: 10,
-        ),
+        style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
       ),
     ],
   );
-
-  Widget _battery(int? value) {
-    final color = value == null
-        ? Colors.grey
-        : value > 50
-        ? Colors.green
-        : value > 20
-        ? Colors.orange
-        : Colors.red;
-    return Column(
-      children: [
-        Text(
-          formatMeasurement(value, SensorUnit.percent, fractionDigits: 0),
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
-        ),
-        Text(
-          'Battery',
-          style: TextStyle(
-            color: Colors.black.withValues(alpha: 0.4),
-            fontSize: 10,
-          ),
-        ),
-        const SizedBox(height: 4),
-        SizedBox(
-          width: 80,
-          child: LinearProgressIndicator(
-            value: value == null ? 0 : value / 100,
-            backgroundColor: Colors.black.withValues(alpha: 0.05),
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-      ],
-    );
-  }
 }

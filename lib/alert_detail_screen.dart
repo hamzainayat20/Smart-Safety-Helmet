@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'application/alert_detail_view_model.dart';
 import 'application/app_dependencies.dart';
 import 'domain/models.dart';
+import 'presentation/design_system/design_system.dart';
 import 'presentation/formatters.dart';
+import 'presentation/monitoring_state.dart';
 import 'user_role.dart';
 
 class AlertDetailScreen extends StatefulWidget {
@@ -43,139 +45,98 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xFF07152C),
+    backgroundColor: AppColors.ink,
     body: SafeArea(
+      bottom: false,
       child: AnimatedBuilder(
         animation: _viewModel,
         builder: (context, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _header(context),
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF4F6FA),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(30),
-                    topRight: Radius.circular(30),
-                  ),
-                ),
-                child: _body(context),
+            AppPageHeader(
+              eyebrow: 'INCIDENT RECORD',
+              title: 'Alert Detail',
+              subtitle: 'Authenticated incident record',
+              leading: HeaderIconButton(
+                icon: Icons.arrow_back_rounded,
+                tooltip: 'Back',
+                onPressed: () => Navigator.pop(context),
               ),
             ),
+            Expanded(child: ContentSheet(child: _body(context))),
           ],
         ),
       ),
     ),
   );
 
-  Widget _header(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 12, 24, 18),
-    child: Row(
-      children: [
-        IconButton(
-          tooltip: 'Back',
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-        ),
-        const SizedBox(width: 4),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Alert Detail',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              Text(
-                'Authenticated incident record',
-                style: TextStyle(color: Color(0xFF77A6D7), fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-
   Widget _body(BuildContext context) {
     if (_viewModel.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const StateView(
+        kind: StateViewKind.loading,
+        title: 'Loading incident',
+        message: 'Fetching the authenticated alert record…',
+      );
     }
     final alert = _viewModel.alert;
     if (alert == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                _viewModel.permissionDenied
-                    ? Icons.lock_outline_rounded
-                    : Icons.notification_important_outlined,
-                size: 42,
-                color: Colors.blueGrey,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                _viewModel.permissionDenied
-                    ? 'Access denied'
-                    : 'Alert unavailable',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _viewModel.errorMessage ??
-                    'This alert does not exist or is outside your assigned scope.',
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
+      return StateView(
+        kind: _viewModel.permissionDenied
+            ? StateViewKind.permissionDenied
+            : StateViewKind.empty,
+        title: _viewModel.permissionDenied ? 'Access denied' : 'Alert unavailable',
+        message:
+            _viewModel.errorMessage ??
+            'This alert does not exist or is outside your assigned scope.',
       );
     }
-
-    final color = alert.severity == SafetySeverity.critical
-        ? Colors.red
-        : Colors.orange;
+    final status = safetyStatusForSeverity(alert.severity);
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.xl + MediaQuery.paddingOf(context).bottom,
+      ),
       children: [
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border(left: BorderSide(color: color, width: 5)),
-          ),
+        AppCard(
+          status: status,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(_iconFor(alert.type), color: color),
-                  const SizedBox(width: 10),
+                  IconTile(
+                    icon: alertTypeIcon(alert.type),
+                    status: status,
+                    size: AppSizes.touchTarget,
+                  ),
+                  const SizedBox(width: AppSpacing.md),
                   Expanded(
-                    child: Text(
-                      alertTypeLabel(alert.type),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          alertTypeLabel(alert.type),
+                          style: AppTypography.title.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          'Received ${formatRelativeTime(alert.serverReceivedAt)}',
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  _StatusPill(label: alert.severity.name, color: color),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.sm),
+              StatusChip(status: status, label: alert.severity.name.toUpperCase()),
+              const SizedBox(height: AppSpacing.sm),
+              const Divider(),
               _DetailRow(label: 'Event ID', value: alert.eventId),
               _DetailRow(label: 'Helmet ID', value: alert.helmetId),
               _DetailRow(
@@ -187,7 +148,13 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: AppSpacing.md),
+        _section(
+          title: 'Response timeline',
+          icon: Icons.timeline_rounded,
+          children: [_LifecycleTimeline(alert: alert)],
+        ),
+        const SizedBox(height: AppSpacing.md),
         _section(
           title: 'Incident evidence',
           icon: Icons.analytics_outlined,
@@ -212,15 +179,12 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: AppSpacing.md),
         _section(
           title: 'Timestamps and delivery',
           icon: Icons.schedule_outlined,
           children: [
-            _DetailRow(
-              label: 'Device time',
-              value: _utc(alert.deviceTimestamp),
-            ),
+            _DetailRow(label: 'Device time', value: _utc(alert.deviceTimestamp)),
             _DetailRow(
               label: 'Server received',
               value: _utc(alert.serverReceivedAt),
@@ -239,7 +203,7 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: AppSpacing.md),
         _section(
           title: 'GPS location',
           icon: Icons.location_on_outlined,
@@ -269,7 +233,7 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
             ],
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: AppSpacing.md),
         _section(
           title: 'Response audit',
           icon: Icons.fact_check_outlined,
@@ -294,68 +258,76 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
           ],
         ),
         if (_viewModel.errorMessage != null) ...[
-          const SizedBox(height: 12),
-          Text(
-            _viewModel.errorMessage!,
-            key: const Key('alert-operation-error'),
-            style: const TextStyle(
-              color: Colors.red,
-              fontWeight: FontWeight.w700,
+          const SizedBox(height: AppSpacing.md),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: SafetyStatus.critical.palette.tint,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              border: Border.all(color: SafetyStatus.critical.palette.line),
+            ),
+            child: Text(
+              _viewModel.errorMessage!,
+              key: const Key('alert-operation-error'),
+              style: AppTypography.label.copyWith(
+                color: SafetyStatus.critical.palette.text,
+              ),
             ),
           ),
         ],
         if (widget.profile.role != UserRole.worker) ...[
-          const SizedBox(height: 18),
+          const SizedBox(height: AppSpacing.lg),
           if (_viewModel.canAcknowledge)
-            FilledButton.icon(
-              key: const Key('acknowledge-alert-button'),
-              onPressed: _viewModel.isAcknowledging
-                  ? null
-                  : () => _confirmAcknowledgement(context),
-              icon: _viewModel.isAcknowledging
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.done_rounded),
-              label: Text(
-                _viewModel.isAcknowledging
-                    ? 'Confirming with backend...'
-                    : 'Acknowledge',
+            SizedBox(
+              height: 56,
+              child: FilledButton.icon(
+                key: const Key('acknowledge-alert-button'),
+                onPressed: _viewModel.isAcknowledging
+                    ? null
+                    : () => _confirmAcknowledgement(context),
+                icon: _viewModel.isAcknowledging
+                    ? const SizedBox.square(
+                        dimension: AppSizes.iconMd,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.done_rounded),
+                label: Text(
+                  _viewModel.isAcknowledging
+                      ? 'Confirming with backend...'
+                      : 'Acknowledge',
+                ),
               ),
             ),
           if (alert.status == AlertStatus.acknowledged) ...[
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: _viewModel.isResolving
-                  ? null
-                  : () => _requestResolution(context),
-              icon: const Icon(Icons.health_and_safety_outlined),
-              label: Text(
-                _viewModel.isResolving
-                    ? 'Checking live hazard state...'
-                    : 'Resolve after hazard clears',
-              ),
+            const SizedBox(height: AppSpacing.sm),
+            AppButton(
+              label: _viewModel.isResolving
+                  ? 'Checking live hazard state...'
+                  : 'Resolve after hazard clears',
+              icon: Icons.health_and_safety_outlined,
+              variant: AppButtonVariant.secondary,
+              loading: _viewModel.isResolving,
+              onPressed: () => _requestResolution(context),
             ),
           ],
           if (alert.deliveredAt == null) ...[
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: _viewModel.isRetryingDelivery
-                  ? null
-                  : () => _retryDelivery(context),
-              icon: const Icon(Icons.refresh_rounded),
-              label: Text(
-                _viewModel.isRetryingDelivery
-                    ? 'Retrying notification...'
-                    : 'Retry supervisor notification',
-              ),
+            const SizedBox(height: AppSpacing.sm),
+            AppButton(
+              label: _viewModel.isRetryingDelivery
+                  ? 'Retrying notification...'
+                  : 'Retry supervisor notification',
+              icon: Icons.refresh_rounded,
+              variant: AppButtonVariant.secondary,
+              loading: _viewModel.isRetryingDelivery,
+              onPressed: () => _retryDelivery(context),
             ),
           ],
-          const SizedBox(height: 8),
-          const Text(
+          const SizedBox(height: AppSpacing.md),
+          Text(
             'Acknowledgement records that the incident was seen. It never changes the original evidence or marks an ongoing hazard safe.',
-            style: TextStyle(color: Colors.black54, fontSize: 12, height: 1.35),
+            style: AppTypography.caption.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ],
@@ -366,23 +338,29 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
     required String title,
     required IconData icon,
     required List<Widget> children,
-  }) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-    ),
+  }) => AppCard(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(icon, size: 19, color: const Color(0xFF2F80ED)),
-            const SizedBox(width: 8),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+            Icon(icon, size: AppSizes.iconMd, color: AppColors.textSecondary),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Semantics(
+                header: true,
+                child: Text(
+                  title,
+                  style: AppTypography.subtitle.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
-        const Divider(height: 24),
+        const SizedBox(height: AppSpacing.sm),
+        const Divider(),
         ...children,
       ],
     ),
@@ -505,62 +483,133 @@ class _DetailRow extends StatelessWidget {
   final String value;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 116,
-          child: Text(
-            label,
-            style: const TextStyle(color: Colors.black54, fontSize: 12),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-          ),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) => KeyValueRow(label: label, value: value);
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label, required this.color});
+/// Lifecycle built only from timestamps already on the alert record.
+class _LifecycleTimeline extends StatelessWidget {
+  const _LifecycleTimeline({required this.alert});
 
-  final String label;
-  final Color color;
+  final SafetyAlert alert;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(30),
-    ),
-    child: Text(
-      label.toUpperCase(),
-      style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 10),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final steps = <(String, DateTime?, IconData)>[
+      ('Raised', alert.serverReceivedAt, Icons.notification_add_outlined),
+      ('Delivered', alert.deliveredAt, Icons.send_outlined),
+      ('Seen', alert.viewedAt, Icons.visibility_outlined),
+      ('Acknowledged', alert.acknowledgedAt, Icons.task_alt_rounded),
+      ('Closed', alert.resolvedAt, Icons.verified_outlined),
+    ];
+    return Column(
+      children: [
+        for (var i = 0; i < steps.length; i++)
+          _TimelineStep(
+            label: steps[i].$1,
+            at: steps[i].$2,
+            icon: steps[i].$3,
+            isLast: i == steps.length - 1,
+            nextDone: i < steps.length - 1 && steps[i + 1].$2 != null,
+          ),
+      ],
+    );
+  }
 }
 
-String _utc(DateTime value) => value.toUtc().toIso8601String();
+class _TimelineStep extends StatelessWidget {
+  const _TimelineStep({
+    required this.label,
+    required this.at,
+    required this.icon,
+    required this.isLast,
+    required this.nextDone,
+  });
+
+  final String label;
+  final DateTime? at;
+  final IconData icon;
+  final bool isLast;
+  final bool nextDone;
+
+  @override
+  Widget build(BuildContext context) {
+    final time = at;
+    final done = time != null;
+    return MergeSemantics(
+      child: SizedBox(
+        height: isLast ? 40 : 56,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 32,
+              child: Column(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: done ? AppColors.ink : AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      border: Border.all(
+                        color: done ? AppColors.ink : AppColors.borderControl,
+                      ),
+                    ),
+                    child: Icon(
+                      done ? icon : Icons.more_horiz_rounded,
+                      size: AppSizes.iconSm,
+                      color: done ? AppColors.onInk : AppColors.textSecondary,
+                    ),
+                  ),
+                  if (!isLast)
+                    Expanded(
+                      child: Container(
+                        width: 2,
+                        color: done && nextDone
+                            ? AppColors.ink
+                            : AppColors.border,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: AppTypography.label.copyWith(
+                          color: done
+                              ? AppColors.textPrimary
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      time != null ? formatRelativeTime(time) : 'Pending',
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _utc(DateTime value) => formatUtcTimestamp(value);
 
 String _evidenceLabel(String value) => value
     .replaceAllMapped(RegExp(r'([A-Z])'), (match) => ' ${match.group(1)}')
     .replaceAll('_', ' ')
     .trim();
 
-IconData _iconFor(AlertType type) => switch (type) {
-  AlertType.temperature => Icons.thermostat_rounded,
-  AlertType.humidity => Icons.water_drop_outlined,
-  AlertType.battery => Icons.battery_alert_rounded,
-  AlertType.fall => Icons.personal_injury_outlined,
-  AlertType.sensorFault => Icons.sensors_off_outlined,
-  AlertType.connectivity => Icons.wifi_off_outlined,
-  AlertType.gas => Icons.warning_amber_rounded,
-};

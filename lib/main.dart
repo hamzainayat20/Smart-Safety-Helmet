@@ -17,6 +17,7 @@ import 'dashboard_screen.dart';
 import 'domain/models.dart';
 import 'domain/repositories.dart';
 import 'firebase_options.dart';
+import 'presentation/design_system/design_system.dart';
 import 'role_selection_screen.dart';
 import 'splash_screen.dart';
 import 'user_role.dart';
@@ -69,40 +70,80 @@ class _FirebaseInitializationFailureApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    home: Scaffold(
-      backgroundColor: const Color(0xFF07152C),
-      body: SafeArea(
-        child: Center(
+    theme: buildAppTheme(),
+    home: const _ChromeMessage(
+      icon: Icons.cloud_off_outlined,
+      title: 'Firebase unavailable',
+      message:
+          'SafeHelmet Pro could not initialize the live backend. '
+          'Check the Firebase configuration and network, then restart the app.',
+    ),
+  );
+}
+
+/// Full-screen message on the dark chrome, with actions in the thumb zone.
+class _ChromeMessage extends StatelessWidget {
+  const _ChromeMessage({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actions = const [],
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: AppColors.ink,
+    body: SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
           child: Padding(
-            padding: const EdgeInsets.all(28),
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(
-                  Icons.cloud_off_outlined,
-                  color: Color(0xFF77A6D7),
-                  size: 52,
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: BrandMark(size: 40),
                 ),
-                const SizedBox(height: 18),
-                const Text(
-                  'Firebase unavailable',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
+                const Spacer(),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppColors.inkRaised,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: AppColors.inkBorder),
+                    ),
+                    child: Icon(icon, size: 28, color: AppColors.onInk),
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: AppSpacing.lg),
+                Semantics(
+                  header: true,
+                  child: Text(
+                    title,
+                    style: AppTypography.headline.copyWith(
+                      color: AppColors.onInk,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'SafeHelmet Pro could not initialize the live backend. '
-                  'Check the Firebase configuration and network, then restart the app.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.72),
-                    height: 1.4,
+                  message,
+                  style: AppTypography.body.copyWith(
+                    color: AppColors.onInkMuted,
                   ),
                 ),
+                const Spacer(flex: 2),
+                ...actions,
               ],
             ),
           ),
@@ -258,10 +299,7 @@ class _MyAppState extends State<MyApp> {
       scaffoldMessengerKey: _messengerKey,
       debugShowCheckedModeBanner: false,
       title: 'SafeHelmet Pro',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
+      theme: buildAppTheme(),
       builder: (context, child) => Listener(
         behavior: HitTestBehavior.translucent,
         onPointerDown: (_) => _session.recordUserActivity(),
@@ -296,7 +334,23 @@ class AuthWrapper extends StatelessWidget {
       builder: (context, _) {
         if (session.status == SessionStatus.loading) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            backgroundColor: AppColors.ink,
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  BrandMark(size: 56),
+                  SizedBox(height: AppSpacing.lg),
+                  SizedBox.square(
+                    dimension: AppSizes.iconLg,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.onInk,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           );
         }
 
@@ -387,48 +441,34 @@ class _SessionMessageScreen extends StatelessWidget {
   final Future<void> Function()? onSecondary;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF07152C),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 52, color: const Color(0xFF77A6D7)),
-                const SizedBox(height: 18),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.72),
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 22),
-                ElevatedButton(onPressed: onAction, child: Text(actionLabel)),
-                if (secondaryLabel != null && onSecondary != null)
-                  TextButton(
-                    onPressed: onSecondary,
-                    child: Text(secondaryLabel!),
-                  ),
-              ],
-            ),
+  Widget build(BuildContext context) => _ChromeMessage(
+    icon: icon,
+    title: title,
+    message: message,
+    actions: [
+      SizedBox(
+        height: 56,
+        child: FilledButton(
+          onPressed: onAction,
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.onInk,
+            foregroundColor: AppColors.ink,
+            textStyle: AppTypography.bodyStrong,
           ),
+          child: Text(actionLabel),
         ),
       ),
-    );
-  }
+      if (secondaryLabel != null && onSecondary != null) ...[
+        const SizedBox(height: AppSpacing.sm),
+        SizedBox(
+          height: AppSizes.touchTarget,
+          child: TextButton(
+            onPressed: onSecondary,
+            style: TextButton.styleFrom(foregroundColor: AppColors.onInk),
+            child: Text(secondaryLabel!),
+          ),
+        ),
+      ],
+    ],
+  );
 }

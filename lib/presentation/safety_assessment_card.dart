@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../domain/models.dart';
+import 'components/app_card.dart';
+import 'components/status_chip.dart';
+import 'design_system/app_tokens.dart';
+import 'design_system/safety_status.dart';
+import 'assessment_text.dart';
 import 'formatters.dart';
 
 class SafetyAssessmentCard extends StatelessWidget {
@@ -19,60 +24,43 @@ class SafetyAssessmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final current = assessment;
     final presentation = _presentation(current);
-    return Container(
-      padding: EdgeInsets.all(compact ? 14 : 18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: presentation.color.withValues(alpha: 0.28)),
-      ),
+    final status = presentation.status;
+    return AppCard(
+      status: status,
+      padding: EdgeInsets.all(compact ? AppSpacing.md : AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.psychology_outlined, color: presentation.color),
-              const SizedBox(width: 10),
-              const Expanded(
+              Icon(
+                Icons.psychology_outlined,
+                size: AppSizes.iconLg,
+                color: status.palette.strong,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
                 child: Text(
                   'AI SAFETY ASSESSMENT',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: presentation.color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  presentation.label,
-                  style: TextStyle(
-                    color: presentation.color,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
+                  style: AppTypography.overline.copyWith(
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ),
+              const SizedBox(width: AppSpacing.sm),
+              StatusChip(status: status, label: presentation.label),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.sm),
           Text(
             presentation.message,
-            style: const TextStyle(
-              color: Colors.black54,
-              fontSize: 12,
-              height: 1.35,
-            ),
+            style: AppTypography.body.copyWith(color: AppColors.textPrimary),
           ),
           if (!compact && current != null) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: AppSpacing.md),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
               children: [
                 _EvidenceChip(
                   label: 'Fall',
@@ -92,24 +80,56 @@ class SafetyAssessmentCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (current.reasonCodes.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'WHY THIS RESULT',
+                style: AppTypography.overline.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              for (final code in current.reasonCodes)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                  child: Text(
+                    describeReasonCode(code),
+                    style: AppTypography.body.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+            ],
             if (current.recommendations.isNotEmpty) ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'RECOMMENDED ACTIONS',
+                style: AppTypography.overline.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
               for (final recommendation in current.recommendations)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.arrow_right_rounded,
-                        color: presentation.color,
-                        size: 18,
+                      Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.xs),
+                        child: Icon(
+                          Icons.arrow_right_rounded,
+                          color: status.palette.strong,
+                          size: AppSizes.iconMd,
+                        ),
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: AppSpacing.xs),
                       Expanded(
                         child: Text(
                           recommendation,
-                          style: const TextStyle(fontSize: 12, height: 1.3),
+                          style: AppTypography.body.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
                         ),
                       ),
                     ],
@@ -127,21 +147,21 @@ class SafetyAssessmentCard extends StatelessWidget {
       return const _AssessmentPresentation(
         label: 'UNAVAILABLE',
         message: 'A current sensor reading is required before assessment.',
-        color: Colors.grey,
+        status: SafetyStatus.unknown,
       );
     }
     if (value == null) {
       return const _AssessmentPresentation(
         label: 'PENDING',
         message: 'Waiting for an assessment of the current sensor event.',
-        color: Colors.blueGrey,
+        status: SafetyStatus.pending,
       );
     }
     if (value.status == InferenceStatus.error) {
       return const _AssessmentPresentation(
         label: 'ERROR',
         message: 'The assessment failed. Do not treat this result as safe.',
-        color: Colors.red,
+        status: SafetyStatus.critical,
       );
     }
     if (value.status == InferenceStatus.outOfDistribution ||
@@ -149,43 +169,43 @@ class SafetyAssessmentCard extends StatelessWidget {
       return const _AssessmentPresentation(
         label: 'OUT OF RANGE',
         message: 'Sensor values are outside the model’s validated range.',
-        color: Colors.orange,
+        status: SafetyStatus.warning,
       );
     }
     if (value.status == InferenceStatus.unavailable) {
       return const _AssessmentPresentation(
         label: 'UNAVAILABLE',
         message: 'There is not enough valid sensor data for an assessment.',
-        color: Colors.grey,
+        status: SafetyStatus.unknown,
       );
     }
     if (value.status == InferenceStatus.pending) {
       return const _AssessmentPresentation(
         label: 'PENDING',
         message: 'The current sensor event is still being assessed.',
-        color: Colors.blueGrey,
+        status: SafetyStatus.pending,
       );
     }
     return switch (value.displayRisk) {
       AssessmentRisk.safe => const _AssessmentPresentation(
         label: 'SAFE',
         message: 'No modeled hazard was detected in the current event.',
-        color: Colors.green,
+        status: SafetyStatus.normal,
       ),
       AssessmentRisk.warning => const _AssessmentPresentation(
         label: 'WARNING',
         message: 'The current readings need attention. Follow site procedures.',
-        color: Colors.orange,
+        status: SafetyStatus.warning,
       ),
       AssessmentRisk.critical => const _AssessmentPresentation(
         label: 'CRITICAL',
         message: 'A serious risk was detected. Take immediate approved action.',
-        color: Colors.red,
+        status: SafetyStatus.critical,
       ),
       AssessmentRisk.unknown => const _AssessmentPresentation(
         label: 'UNKNOWN',
         message: 'The available result is not sufficient to declare safety.',
-        color: Colors.grey,
+        status: SafetyStatus.unknown,
       ),
     };
   }
@@ -215,14 +235,19 @@ class _EvidenceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    constraints: const BoxConstraints(minHeight: AppSizes.chipHeight),
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.sm,
+      vertical: AppSpacing.xs,
+    ),
     decoration: BoxDecoration(
-      color: const Color(0xFFF4F6FA),
-      borderRadius: BorderRadius.circular(10),
+      color: AppColors.surfaceSunken,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      border: Border.all(color: AppColors.border),
     ),
     child: Text(
       '$label: $value',
-      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+      style: AppTypography.label.copyWith(color: AppColors.textPrimary),
     ),
   );
 }
@@ -231,10 +256,10 @@ final class _AssessmentPresentation {
   const _AssessmentPresentation({
     required this.label,
     required this.message,
-    required this.color,
+    required this.status,
   });
 
   final String label;
   final String message;
-  final Color color;
+  final SafetyStatus status;
 }

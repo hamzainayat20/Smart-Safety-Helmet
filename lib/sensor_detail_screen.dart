@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'application/dashboard_view_model.dart';
 import 'domain/models.dart';
+import 'presentation/design_system/design_system.dart';
 import 'presentation/formatters.dart';
+import 'presentation/helmet_history.dart';
 import 'presentation/monitoring_state.dart';
 import 'presentation/safety_assessment_card.dart';
+import 'presentation/sensor_limits.dart';
 
 class SensorDetailScreen extends StatelessWidget {
   const SensorDetailScreen({
@@ -30,22 +33,15 @@ class SensorDetailScreen extends StatelessWidget {
           ? viewModel.loadState
           : viewModel.monitoringStateFor(helmet);
       return Scaffold(
-        backgroundColor: const Color(0xFF07152C),
+        backgroundColor: AppColors.ink,
         body: SafeArea(
+          bottom: false,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildHeader(context, reading, state),
               Expanded(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 20),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF4F6FA),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(30),
-                      topRight: Radius.circular(30),
-                    ),
-                  ),
+                child: ContentSheet(
                   child:
                       state == MonitoringState.loading ||
                           state == MonitoringState.permissionDenied ||
@@ -67,88 +63,28 @@ class SensorDetailScreen extends StatelessWidget {
                               ? viewModel.retry
                               : null,
                         )
-                      : SingleChildScrollView(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            children: [
-                              SafetyAssessmentCard(
-                                reading: reading,
-                                assessment: viewModel.assessmentFor(helmetId),
-                              ),
-                              const SizedBox(height: 12),
-                              _buildBatteryCard(reading),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _smallMetric(
-                                      formatMeasurement(
-                                        reading.temperatureC,
-                                        SensorUnit.degreesCelsius,
-                                      ),
-                                      'Temperature (DHT22)',
-                                      _sensorStatus(
-                                        reading.temperatureC,
-                                        40,
-                                        50,
-                                      ),
-                                      Icons.thermostat,
-                                    ),
+                      : HelmetLimitsBuilder(
+                          viewModel: viewModel,
+                          helmetId: helmetId,
+                          builder: (context, limits) => HelmetHistoryBuilder(
+                            viewModel: viewModel,
+                            helmetId: helmetId,
+                            builder: (context, history) =>
+                                SingleChildScrollView(
+                                  padding: EdgeInsets.fromLTRB(
+                                    AppSpacing.md,
+                                    AppSpacing.lg,
+                                    AppSpacing.md,
+                                    AppSpacing.xl +
+                                        MediaQuery.paddingOf(context).bottom,
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _smallMetric(
-                                      formatMeasurement(
-                                        reading.humidityPct,
-                                        SensorUnit.percentRelativeHumidity,
-                                      ),
-                                      'Humidity (DHT22)',
-                                      _humidityStatus(reading.humidityPct),
-                                      Icons.water_drop,
-                                    ),
+                                  child: _content(
+                                    reading,
+                                    state,
+                                    limits,
+                                    history,
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _smallMetric(
-                                      formatMeasurement(
-                                        reading.gasPpm,
-                                        SensorUnit.partsPerMillion,
-                                      ),
-                                      'Gas Level (MQ-7)',
-                                      reading.gasWarmUp
-                                          ? 'Sensor Warming Up'
-                                          : _sensorStatus(
-                                              reading.gasPpm,
-                                              100,
-                                              200,
-                                            ),
-                                      Icons.cloud_outlined,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _smallMetric(
-                                      _gpsValue(reading),
-                                      'GPS Status',
-                                      _gpsStatus(reading),
-                                      Icons.location_on_outlined,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              _motionCard(
-                                reading,
-                                viewModel.hasActiveAlert(
-                                  helmetId,
-                                  AlertType.fall,
                                 ),
-                              ),
-                            ],
                           ),
                         ),
                 ),
@@ -164,234 +100,324 @@ class SensorDetailScreen extends StatelessWidget {
     BuildContext context,
     SensorReading? reading,
     MonitoringState state,
-  ) => Padding(
-    padding: const EdgeInsets.all(20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: Row(
-            children: [
-              const Icon(Icons.arrow_back, color: Colors.white, size: 16),
-              const SizedBox(width: 8),
-              Text(
-                '$helmetId - $workerName',
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Sensor Data',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        Text(
-          reading == null
-              ? '${_stateLabel(state)} • ${viewModel.dataSourceLabel}'
-              : '${_stateLabel(state)} • Last update '
-                    '${formatRelativeTime(reading.serverReceivedAt)} • '
-                    '${viewModel.dataSourceLabel}',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.6),
-            fontSize: 12,
-          ),
-        ),
-      ],
+  ) => AppPageHeader(
+    eyebrow: '$helmetId • $workerName'.toUpperCase(),
+    title: 'Sensor Data',
+    subtitle: reading == null
+        ? viewModel.dataSourceLabel
+        : 'Received ${formatRelativeTime(reading.serverReceivedAt)} • ${viewModel.dataSourceLabel}',
+    leading: HeaderIconButton(
+      icon: Icons.arrow_back_rounded,
+      tooltip: 'Back',
+      onPressed: () => Navigator.pop(context),
     ),
-  );
-
-  Widget _buildBatteryCard(SensorReading reading) => Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-    ),
-    child: Column(
-      children: [
-        Text(
-          'DEVICE BATTERY',
-          style: TextStyle(
-            color: Colors.black.withValues(alpha: 0.4),
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          formatNumber(reading.batteryPct, fractionDigits: 0),
-          style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900),
-        ),
-        const Text(
-          'percent',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          reading.batteryPct == null
-              ? 'Battery reading unavailable'
-              : 'Low-battery warning below 20%',
-          style: const TextStyle(
-            fontSize: 11,
-            color: Colors.green,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    ),
-  );
-
-  Widget _smallMetric(
-    String value,
-    String label,
-    String status,
-    IconData icon,
-  ) {
-    final color = status == 'Critical'
-        ? Colors.red
-        : status == 'Warning' || status == 'Sensor Warming Up'
-        ? Colors.orange
-        : status == 'Unavailable'
-        ? Colors.grey
-        : Colors.green;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+    bottom: Align(
+      alignment: Alignment.centerLeft,
+      child: StatusChip(
+        status: safetyStatusForMonitoringState(state),
+        label: _stateLabel(state),
+        onInk: true,
       ),
+    ),
+  );
+
+  Widget _content(
+    SensorReading reading,
+    MonitoringState state,
+    SensorLimits limits,
+    List<SensorReading> history,
+  ) {
+    final notLive =
+        state == MonitoringState.stale || state == MonitoringState.offline;
+    SafetyStatus shown(SafetyStatus status) =>
+        notLive ? SafetyStatus.stale : status;
+    String? label(SafetyStatus status) =>
+        notLive ? null : readingStatusLabel(status);
+
+    final temperature = limits.temperature(reading.temperatureC);
+    final humidity = limits.humidity(reading.humidityPct);
+    final gas = limits.gas(reading.gasPpm, warmingUp: reading.gasWarmUp);
+    final assessment = viewModel.assessmentFor(helmetId);
+    // No heat-index thresholds exist in the requirements, so use the AI
+    // service's own heat-index risk instead of inventing limits.
+    final heatIndex = assessment == null
+        ? SafetyStatus.pending
+        : switch (assessment.heatIndexRisk) {
+            ComponentRisk.normal => SafetyStatus.normal,
+            ComponentRisk.warning => SafetyStatus.warning,
+            ComponentRisk.critical => SafetyStatus.critical,
+            ComponentRisk.unavailable => SafetyStatus.unknown,
+          };
+    final battery = SensorLimits.battery(reading.batteryPct);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SafetyAssessmentCard(reading: reading, assessment: assessment),
+        const SizedBox(height: AppSpacing.lg),
+        SectionHeader(title: 'Environment', subtitle: limits.sourceLabel),
+        ResponsiveTileGrid(
+          minTileWidth: 160,
+          children: [
+            SensorCard(
+              label: 'Temperature (DHT22)',
+              icon: Icons.thermostat_rounded,
+              value: reading.temperatureC,
+              unit: SensorUnit.degreesCelsius,
+              status: shown(temperature),
+              statusLabel: label(temperature),
+              gauge: ThresholdGauge(
+                value: reading.temperatureC,
+                max: limits.temperatureCriticalC * 1.2,
+                warningAt: limits.temperatureWarningC,
+                criticalAt: limits.temperatureCriticalC,
+                status: shown(temperature),
+                unit: ' °C',
+              ),
+              trend: TrendSparkline(
+                values: trendSeries(history, (r) => r.temperatureC),
+                status: shown(temperature),
+                warningAt: limits.temperatureWarningC,
+                unit: ' °C',
+              ),
+            ),
+            SensorCard(
+              label: 'Humidity (DHT22)',
+              icon: Icons.water_drop_outlined,
+              value: reading.humidityPct,
+              unit: SensorUnit.percentRelativeHumidity,
+              status: shown(humidity),
+              statusLabel: label(humidity),
+              gauge: ThresholdGauge(
+                value: reading.humidityPct,
+                max: 100,
+                warningAt: limits.humidityWarningHighPct,
+                criticalAt: limits.humidityCriticalHighPct,
+                status: shown(humidity),
+                unit: '%',
+              ),
+              trend: TrendSparkline(
+                values: trendSeries(history, (r) => r.humidityPct),
+                status: shown(humidity),
+                warningAt: limits.humidityWarningHighPct,
+                unit: '%',
+              ),
+            ),
+            SensorCard(
+              label: 'Gas Level (MQ-7)',
+              icon: Icons.air_rounded,
+              value: reading.gasPpm,
+              unit: SensorUnit.partsPerMillion,
+              status: shown(gas),
+              statusLabel: label(gas),
+              gauge: ThresholdGauge(
+                value: reading.gasWarmUp ? null : reading.gasPpm,
+                max: limits.gasCriticalPpm * 1.5,
+                warningAt: limits.gasWarningPpm,
+                criticalAt: limits.gasCriticalPpm,
+                status: shown(gas),
+                unit: ' ppm',
+              ),
+              trend: reading.gasWarmUp
+                  ? null
+                  : TrendSparkline(
+                      values: trendSeries(
+                        history.where((r) => !r.gasWarmUp).toList(),
+                        (r) => r.gasPpm,
+                      ),
+                      status: shown(gas),
+                      warningAt: limits.gasWarningPpm,
+                      unit: ' ppm',
+                    ),
+            ),
+            SensorCard(
+              label: 'Heat index (feels like)',
+              icon: Icons.wb_sunny_outlined,
+              value: reading.heatIndexC,
+              unit: SensorUnit.degreesCelsius,
+              status: shown(heatIndex),
+              statusLabel: notLive
+                  ? null
+                  : assessment == null
+                  ? 'Awaiting assessment'
+                  : readingStatusLabel(heatIndex),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        const SectionHeader(title: 'Power, position and link'),
+        ResponsiveTileGrid(
+          minTileWidth: 160,
+          children: [
+            SensorCard(
+              label: 'Battery',
+              icon: Icons.battery_charging_full_rounded,
+              value: reading.batteryPct,
+              unit: SensorUnit.percent,
+              fractionDigits: 0,
+              status: shown(battery),
+              statusLabel: label(battery),
+              gauge: ThresholdGauge(
+                value: reading.batteryPct?.toDouble(),
+                max: 100,
+                warningAt: SensorLimits.batteryWarningPct.toDouble(),
+                criticalAt: SensorLimits.batteryCriticalPct.toDouble(),
+                status: shown(battery),
+                unit: '%',
+              ),
+            ),
+            _TextReadingCard(
+              label: 'GPS Status',
+              icon: Icons.location_on_outlined,
+              value: _gpsValue(reading),
+              detail: _gpsStatus(reading),
+              status: _gpsSafetyStatus(reading),
+            ),
+            _TextReadingCard(
+              label: 'Helmet link',
+              icon: Icons.wifi_tethering_rounded,
+              value: _connectivityLabel(reading.connectivity),
+              detail: reading.connectivity == ConnectivityStatus.online
+                  ? 'Streaming'
+                  : 'Check coverage',
+              status: switch (reading.connectivity) {
+                ConnectivityStatus.online => SafetyStatus.normal,
+                ConnectivityStatus.degraded ||
+                ConnectivityStatus.offlineBuffering => SafetyStatus.warning,
+                ConnectivityStatus.offline => SafetyStatus.offline,
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        const SectionHeader(title: 'Motion'),
+        _motionCard(
+          reading,
+          viewModel.hasActiveAlert(helmetId, AlertType.fall),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        const SectionHeader(title: 'Device diagnostics'),
+        _diagnosticsCard(reading),
+      ],
+    );
+  }
+
+  Widget _motionCard(SensorReading reading, bool activeFallAlert) {
+    final fallStatus = activeFallAlert
+        ? SafetyStatus.critical
+        : SafetyStatus.normal;
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.black.withValues(alpha: 0.2), size: 24),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'IMU / MOTION',
+                  style: AppTypography.overline.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              Text(
+                _fallStatusLabel(reading.fallStatus),
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
           ),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.black.withValues(alpha: 0.4),
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(child: _axis(reading.accelXG, 'Accel X')),
+              Expanded(child: _axis(reading.accelYG, 'Accel Y')),
+              Expanded(child: _axis(reading.accelZG, 'Accel Z')),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            status,
-            style: TextStyle(
-              color: color,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(child: _rotation(reading.gyroXDegreesPerSecond, 'Gyro X')),
+              Expanded(child: _rotation(reading.gyroYDegreesPerSecond, 'Gyro Y')),
+              Expanded(child: _rotation(reading.gyroZDegreesPerSecond, 'Gyro Z')),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              StatusChip(
+                status: fallStatus,
+                label: activeFallAlert
+                    ? 'Confirmed fall alert'
+                    : 'No active fall alert',
+              ),
+              Text(
+                'Rule-based',
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _motionCard(SensorReading reading, bool activeFallAlert) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-    ),
+  Widget _diagnosticsCard(SensorReading reading) => AppCard(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        KeyValueRow(label: 'Firmware', value: reading.firmwareVersion),
+        KeyValueRow(label: 'Event ID', value: reading.eventId),
+        KeyValueRow(
+          label: 'Device clock',
+          value: formatUtcTimestamp(reading.deviceTimestamp),
+        ),
+        KeyValueRow(
+          label: 'Server received',
+          value: formatUtcTimestamp(reading.serverReceivedAt),
+        ),
+        const SizedBox(height: AppSpacing.sm),
         Text(
-          'IMU / Motion (MPU6050)',
-          style: TextStyle(
-            color: Colors.black.withValues(alpha: 0.4),
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
+          'ACTIVE SENSOR FAULTS',
+          style: AppTypography.overline.copyWith(
+            color: AppColors.textSecondary,
           ),
         ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            _axis(reading.accelXG, 'Accel X'),
-            _axis(reading.accelYG, 'Accel Y'),
-            _axis(reading.accelZG, 'Accel Z'),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                color: (activeFallAlert ? Colors.red : Colors.green).withValues(
-                  alpha: 0.1,
+        const SizedBox(height: AppSpacing.sm),
+        if (reading.sensorFaults.isEmpty)
+          const StatusChip(status: SafetyStatus.normal, label: 'None reported')
+        else
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              for (final fault in reading.sensorFaults)
+                StatusChip(
+                  status: SafetyStatus.critical,
+                  label: _faultLabel(fault),
                 ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    'Rule-based',
-                    style: TextStyle(
-                      color: activeFallAlert ? Colors.red : Colors.green,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                  Text(
-                    activeFallAlert
-                        ? 'Confirmed fall alert'
-                        : 'No active fall alert',
-                    style: TextStyle(
-                      color: activeFallAlert ? Colors.red : Colors.green,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
-
-  Widget _axis(double? value, String label) => Padding(
-    padding: const EdgeInsets.only(right: 20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          formatMeasurement(value, SensorUnit.standardGravity),
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.black.withValues(alpha: 0.4),
-            fontSize: 9,
+            ],
           ),
-        ),
       ],
     ),
   );
 
-  String _sensorStatus(double? value, double warning, double critical) {
-    if (value == null) return 'Unavailable';
-    if (value > critical) return 'Critical';
-    if (value >= warning) return 'Warning';
-    return 'Safe';
-  }
+  Widget _axis(double? value, String label) => _AxisValue(
+    value: formatMeasurement(value, SensorUnit.standardGravity),
+    label: label,
+  );
 
-  String _humidityStatus(double? value) {
-    if (value == null) return 'Unavailable';
-    if (value < 20 || value > 90) return 'Critical';
-    if (value < 30 || value > 80) return 'Warning';
-    return 'Safe';
-  }
+  Widget _rotation(double? value, String label) => _AxisValue(
+    value: value == null ? 'Unavailable' : '${formatNumber(value)} °/s',
+    label: label,
+  );
 
   String _gpsValue(SensorReading reading) => switch (reading.gpsStatus) {
     GpsStatus.valid when reading.location != null => 'Valid',
@@ -406,7 +432,45 @@ class SensorDetailScreen extends StatelessWidget {
     GpsStatus.acquiring => 'Acquiring',
     GpsStatus.lost when reading.location?.isLastKnown == true => 'Last known',
     GpsStatus.lost => 'GPS lost',
-    GpsStatus.invalid || GpsStatus.valid => 'Unavailable',
+    GpsStatus.invalid || GpsStatus.valid => 'No valid fix',
+  };
+
+  SafetyStatus _gpsSafetyStatus(SensorReading reading) =>
+      switch (reading.gpsStatus) {
+        GpsStatus.valid when reading.location != null =>
+          reading.location!.isLastKnown
+              ? SafetyStatus.stale
+              : SafetyStatus.normal,
+        GpsStatus.acquiring => SafetyStatus.pending,
+        GpsStatus.lost => SafetyStatus.offline,
+        GpsStatus.invalid || GpsStatus.valid => SafetyStatus.unknown,
+      };
+
+  String _connectivityLabel(ConnectivityStatus status) => switch (status) {
+    ConnectivityStatus.online => 'Online',
+    ConnectivityStatus.degraded => 'Degraded',
+    ConnectivityStatus.offlineBuffering => 'Buffering offline',
+    ConnectivityStatus.offline => 'Offline',
+  };
+
+  String _fallStatusLabel(FallStatus status) => switch (status) {
+    FallStatus.notEvaluated => 'Detector idle',
+    FallStatus.normal => 'Normal motion',
+    FallStatus.freeFallCandidate => 'Free-fall candidate',
+    FallStatus.impactDetected => 'Impact detected',
+    FallStatus.stillnessCandidate => 'Stillness check',
+    FallStatus.confirmed => 'Fall confirmed',
+    FallStatus.cooldown => 'Cooldown',
+  };
+
+  String _faultLabel(SensorFault fault) => switch (fault) {
+    SensorFault.mpuReadFailed => 'Motion sensor read failed',
+    SensorFault.dhtReadFailed => 'DHT22 read failed',
+    SensorFault.mq7ReadFailed => 'Gas sensor read failed',
+    SensorFault.mq7Uncalibrated => 'Gas sensor uncalibrated',
+    SensorFault.mq7HeaterStateUnknown => 'Gas heater state unknown',
+    SensorFault.gpsUnavailable => 'GPS unavailable',
+    SensorFault.batteryUnavailable => 'Battery unavailable',
   };
 
   String _stateLabel(MonitoringState state) => switch (state) {
@@ -418,8 +482,86 @@ class SensorDetailScreen extends StatelessWidget {
     MonitoringState.stale => 'Stale • Last known values',
     MonitoringState.offline => 'Offline',
     MonitoringState.sensorFault => 'Sensor Fault',
-    MonitoringState.warmingUp => 'MQ135 Warming Up',
+    MonitoringState.warmingUp => 'Gas sensor warming up',
     MonitoringState.permissionDenied => 'Permission Denied',
     MonitoringState.backendError => 'Backend Error',
   };
+}
+
+/// Card for non-numeric readings (GPS fix, link state).
+class _TextReadingCard extends StatelessWidget {
+  const _TextReadingCard({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.detail,
+    required this.status,
+  });
+
+  final String label;
+  final IconData icon;
+  final String value;
+  final String detail;
+  final SafetyStatus status;
+
+  @override
+  Widget build(BuildContext context) => AppCard(
+    status: status.needsAttention ? status : null,
+    semanticLabel: '$label, $value, $detail',
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: AppSizes.iconMd, color: AppColors.textSecondary),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTypography.label.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          value,
+          style: AppTypography.metric.copyWith(color: AppColors.textPrimary),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        StatusChip(status: status, label: detail),
+      ],
+    ),
+  );
+}
+
+class _AxisValue extends StatelessWidget {
+  const _AxisValue({required this.value, required this.label});
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          value,
+          style: AppTypography.bodyStrong.copyWith(
+            color: AppColors.textPrimary,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ),
+      Text(
+        label,
+        style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+      ),
+    ],
+  );
 }
