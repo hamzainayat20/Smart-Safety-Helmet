@@ -133,9 +133,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           const SizedBox(height: AppSpacing.md),
                           AuthTextField(
-                            label: 'Work email',
+                            label: 'Email address',
                             controller: _emailController,
-                            hintText: 'name@company.com',
+                            hintText: 'name@example.com',
                             icon: Icons.alternate_email_rounded,
                             keyboardType: TextInputType.emailAddress,
                             textInputAction: TextInputAction.next,
@@ -187,7 +187,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           const SizedBox(height: AppSpacing.md),
                           Text(
-                            'Use your work email for worker access.',
+                            'Use the email registered for worker access.',
                             textAlign: TextAlign.center,
                             style: AppTypography.caption.copyWith(
                               color: AppColors.textSecondary,

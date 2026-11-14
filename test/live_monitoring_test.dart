@@ -77,6 +77,7 @@ void main() {
           data,
           backendConnected: backendConnected,
         ),
+        assessments: MockAssessmentRepository(data),
         alerts: MockAlertRepository(data),
         configuration: MockConfigurationRepository(data),
         dataSourceKind: DataSourceKind.deterministicMock,
@@ -212,6 +213,52 @@ void main() {
           MonitoringState.stale,
         );
         expect(viewModel.statisticsAreLive, isFalse);
+        viewModel.dispose();
+      },
+    );
+
+    test(
+      'critical AI assessment elevates the current monitoring state',
+      () async {
+        final source = data.assessments['H-03']!;
+        final json = source.toJson()..['overallRisk'] = 'critical';
+        data.assessments['H-03'] = SafetyAssessment.fromJson(json);
+        final viewModel = DashboardViewModel(
+          profile: data.users['supervisor-demo']!,
+          dependencies: dependencies,
+          clock: () => DateTime.utc(2026, 8, 3, 12, 0, 10),
+          freshnessTick: const Duration(hours: 1),
+        )..start();
+        await _settleStreams();
+
+        expect(
+          viewModel.monitoringStateFor(data.helmets['H-03']!),
+          MonitoringState.critical,
+        );
+        viewModel.dispose();
+      },
+    );
+
+    test(
+      'fresh authenticated reading overrides stale offline metadata',
+      () async {
+        final source = data.helmets['H-03']!;
+        data.helmets['H-03'] = Helmet.fromJson({
+          ...source.toJson(),
+          'connectivity': 'offline',
+        });
+        final viewModel = DashboardViewModel(
+          profile: data.users['supervisor-demo']!,
+          dependencies: dependencies,
+          clock: () => DateTime.utc(2026, 8, 3, 12, 0, 10),
+          freshnessTick: const Duration(hours: 1),
+        )..start();
+        await _settleStreams();
+
+        expect(
+          viewModel.monitoringStateFor(data.helmets['H-03']!),
+          MonitoringState.safe,
+        );
         viewModel.dispose();
       },
     );

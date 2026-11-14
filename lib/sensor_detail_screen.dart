@@ -4,6 +4,7 @@ import 'application/dashboard_view_model.dart';
 import 'domain/models.dart';
 import 'presentation/design_system/design_system.dart';
 import 'presentation/formatters.dart';
+import 'presentation/assessment_history_panel.dart';
 import 'presentation/helmet_history.dart';
 import 'presentation/monitoring_state.dart';
 import 'presentation/safety_assessment_card.dart';
@@ -154,6 +155,12 @@ class SensorDetailScreen extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SafetyAssessmentCard(reading: reading, assessment: assessment),
+        const SizedBox(height: AppSpacing.md),
+        AssessmentHistoryPanel(
+          repository: viewModel.dependencies.assessments,
+          actor: viewModel.profile,
+          helmetId: helmetId,
+        ),
         const SizedBox(height: AppSpacing.lg),
         SectionHeader(title: 'Environment', subtitle: limits.sourceLabel),
         ResponsiveTileGrid(
@@ -339,9 +346,15 @@ class SensorDetailScreen extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
-              Expanded(child: _rotation(reading.gyroXDegreesPerSecond, 'Gyro X')),
-              Expanded(child: _rotation(reading.gyroYDegreesPerSecond, 'Gyro Y')),
-              Expanded(child: _rotation(reading.gyroZDegreesPerSecond, 'Gyro Z')),
+              Expanded(
+                child: _rotation(reading.gyroXDegreesPerSecond, 'Gyro X'),
+              ),
+              Expanded(
+                child: _rotation(reading.gyroYDegreesPerSecond, 'Gyro Y'),
+              ),
+              Expanded(
+                child: _rotation(reading.gyroZDegreesPerSecond, 'Gyro Z'),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),

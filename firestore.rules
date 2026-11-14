@@ -5,16 +5,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function verified() {
-      return signedIn() && request.auth.token.email_verified == true;
-    }
-
     function callerProfile() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function active() {
-      return verified() && callerProfile().active == true;
+      return signedIn() && callerProfile().active == true;
     }
 
     function administrator() {

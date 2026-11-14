@@ -74,29 +74,6 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  Future<void> _handleResendVerification() async {
-    if (_emailController.text.trim().isEmpty ||
-        _passwordController.text.isEmpty) {
-      setState(
-        () => _result = const SessionActionResult.failure(
-          SessionIssue.invalidCredentials,
-          'Enter your email and password to request another verification email.',
-        ),
-      );
-      return;
-    }
-    setState(() => _isLoading = true);
-    final result = await widget.session.resendVerification(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-    );
-    if (!mounted) return;
-    setState(() {
-      _isLoading = false;
-      _result = result;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final isWorker = widget.role == UserRole.worker;
@@ -195,20 +172,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 icon: Icons.login_rounded,
                                 loading: _isLoading,
                                 onPressed: _handleSignIn,
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            TextButton.icon(
-                              key: const Key('resend-verification'),
-                              onPressed: _isLoading
-                                  ? null
-                                  : _handleResendVerification,
-                              icon: const Icon(
-                                Icons.mark_email_read_outlined,
-                                size: AppSizes.iconMd,
-                              ),
-                              label: const Text(
-                                'Send/Resend verification email',
                               ),
                             ),
                             const SizedBox(height: AppSpacing.lg),

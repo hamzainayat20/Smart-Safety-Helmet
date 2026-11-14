@@ -198,6 +198,8 @@ test('valid telemetry writes current, history and a stable dedupe timestamp', as
   assert.equal(response.statusCode, 202);
   assert.equal(getAt(database.data, 'helmets/helmet001/current/accelXG'), 0);
   assert.equal(getAt(database.data, 'helmets/helmet001/current/severity'), 'unassessed');
+  assert.equal(getAt(database.data, 'helmets/helmet001/meta/connectivity'), 'online');
+  assert.equal(getAt(database.data, 'helmets/helmet001/meta/lastSeenAt'), initialNow);
   assert.equal(getAt(database.data, 'readings/helmet001/helmet001_test_1/accelZG'), 1);
   assert.deepEqual(getAt(database.data, 'dedupe/helmet001/helmet001_test_1'), {
     semanticHash: getAt(database.data, 'dedupe/helmet001/helmet001_test_1/semanticHash'),
@@ -231,6 +233,10 @@ test('duplicate repair reuses serverReceivedAt and restores missing projections'
   });
   assert.equal(retry.statusCode, 200);
   assert.equal(retry.body.duplicate, true);
+  assert.equal(
+    getAt(database.data, 'helmets/helmet001/meta/lastSeenAt'),
+    initialNow + 1000,
+  );
   assert.equal(getAt(database.data, 'helmets/helmet001/current/serverReceivedAt'), initialNow);
   assert.equal(
     getAt(database.data, 'readings/helmet001/helmet001_test_1/serverReceivedAt'),

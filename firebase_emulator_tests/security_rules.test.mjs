@@ -181,12 +181,14 @@ beforeEach(async () => {
 after(async () => environment?.cleanup());
 
 describe('Realtime Database authorization', () => {
-  test('anonymous and unverified principals cannot read operational data', async () => {
+  test('anonymous users are denied while trusted unverified users retain scoped access', async () => {
     await assertFails(getDatabaseValue(ref(environment.unauthenticatedContext().database(), 'helmets/helmetA/meta')));
     const unverified = environment.authenticatedContext('worker1', {
       email_verified: false, role: 'worker',
     }).database();
-    await assertFails(getDatabaseValue(ref(unverified, 'users/worker1')));
+    await assertSucceeds(getDatabaseValue(ref(unverified, 'users/worker1')));
+    await assertSucceeds(getDatabaseValue(ref(unverified, 'helmets/helmetA/current')));
+    await assertFails(getDatabaseValue(ref(unverified, 'helmets/helmetB/current')));
   });
 
   test('worker reads only own profile, assigned helmet, readings, and alerts', async () => {
@@ -312,6 +314,14 @@ describe('Realtime Database authorization', () => {
 });
 
 describe('Legacy Firestore profile authorization', () => {
+  test('trusted unverified worker can read only their own active profile', async () => {
+    const firestore = environment.authenticatedContext('worker1', {
+      email_verified: false, role: 'worker', email: 'worker1@example.com',
+    }).firestore();
+    await assertSucceeds(getDoc(doc(firestore, 'users', 'worker1')));
+    await assertFails(getDoc(doc(firestore, 'users', 'worker2')));
+  });
+
   test('worker cannot read another profile or elevate protected fields', async () => {
     const firestore = environment.authenticatedContext('worker1', {
       ...verified('worker'), email: 'worker1@example.com',

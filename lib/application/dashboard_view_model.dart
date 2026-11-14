@@ -274,10 +274,14 @@ final class DashboardViewModel extends ChangeNotifier {
     if (_repositoryError != null) return MonitoringState.backendError;
     if (isLoading) return MonitoringState.loading;
     final reading = readingFor(helmet.helmetId);
-    if (!helmet.active || helmet.connectivity == ConnectivityStatus.offline) {
+    if (!helmet.active) {
       return MonitoringState.offline;
     }
-    if (reading == null) return MonitoringState.empty;
+    if (reading == null) {
+      return helmet.connectivity == ConnectivityStatus.offline
+          ? MonitoringState.offline
+          : MonitoringState.empty;
+    }
     if (_backendConnected != true || isStale(reading)) {
       return MonitoringState.stale;
     }
@@ -302,6 +306,16 @@ final class DashboardViewModel extends ChangeNotifier {
         hasActiveSensorReadFailure ||
         hasNoEnvironmentalMeasurement) {
       return MonitoringState.sensorFault;
+    }
+    // AI assessments never fabricate operational alert records, but a valid
+    // assessment for the current event may safely elevate the visible state.
+    // A "safe" assessment deliberately cannot downgrade unassessed telemetry.
+    final assessmentRisk = assessmentFor(helmet.helmetId)?.displayRisk;
+    if (assessmentRisk == AssessmentRisk.critical) {
+      return MonitoringState.critical;
+    }
+    if (assessmentRisk == AssessmentRisk.warning) {
+      return MonitoringState.warning;
     }
     if (reading.severity == SafetySeverity.critical) {
       return MonitoringState.critical;

@@ -11,7 +11,6 @@ enum SessionStatus {
   loading,
   signedOut,
   authenticated,
-  verificationRequired,
   accessDenied,
   disabled,
   error,
@@ -19,7 +18,6 @@ enum SessionStatus {
 
 enum SessionIssue {
   none,
-  emailVerificationRequired,
   disabledAccount,
   inactiveProfile,
   roleMismatch,
@@ -308,16 +306,8 @@ final class SessionController extends ChangeNotifier {
         }
         return _resultForError(profileError);
       }
-      try {
-        await dependencies.authentication.sendEmailVerification();
-      } on Object {
-        return const SessionActionResult.success(
-          'Worker account created, but the verification email could not be '
-          'sent. Sign in and use Resend verification email.',
-        );
-      }
       return const SessionActionResult.success(
-        'Worker account created. Check your email to verify the account before signing in.',
+        'Worker account created. You can sign in now.',
       );
     } on Object catch (error) {
       return _resultForError(error);
@@ -339,43 +329,6 @@ final class SessionController extends ChangeNotifier {
     } finally {
       _setBusy(false);
     }
-  }
-
-  Future<SessionActionResult> resendVerification({
-    required String email,
-    required String password,
-  }) async {
-    _setBusy(true);
-    try {
-      final identity = await dependencies.authentication.signIn(
-        email: email,
-        password: password,
-      );
-      if (identity.emailVerified) {
-        await dependencies.authentication.signOut();
-        return const SessionActionResult.success(
-          'Email is already verified. You can sign in now.',
-        );
-      }
-      await dependencies.authentication.sendEmailVerification();
-      await dependencies.authentication.signOut();
-      return const SessionActionResult.success(
-        'A new verification email has been sent.',
-      );
-    } on Object catch (error) {
-      return _resultForError(error);
-    } finally {
-      _setBusy(false);
-    }
-  }
-
-  Future<void> resendCurrentVerification() async {
-    await dependencies.authentication.sendEmailVerification();
-  }
-
-  Future<void> refreshVerification() async {
-    final identity = await dependencies.authentication.refreshIdentity();
-    await _handleIdentity(identity);
   }
 
   void recordUserActivity() {

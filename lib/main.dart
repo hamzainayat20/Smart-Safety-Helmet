@@ -383,20 +383,6 @@ class AuthWrapper extends StatelessWidget {
           );
         }
 
-        if (session.status == SessionStatus.verificationRequired) {
-          return _SessionMessageScreen(
-            icon: Icons.mark_email_unread_outlined,
-            title: 'Verify your email',
-            message:
-                session.errorMessage ??
-                'Verify your email address before accessing safety data.',
-            actionLabel: 'I have verified my email',
-            onAction: session.refreshVerification,
-            secondaryLabel: 'Sign out',
-            onSecondary: session.signOut,
-          );
-        }
-
         if (session.status == SessionStatus.error ||
             session.status == SessionStatus.accessDenied ||
             session.status == SessionStatus.disabled) {
@@ -428,8 +414,6 @@ class _SessionMessageScreen extends StatelessWidget {
     required this.message,
     required this.actionLabel,
     required this.onAction,
-    this.secondaryLabel,
-    this.onSecondary,
   });
 
   final IconData icon;
@@ -437,8 +421,6 @@ class _SessionMessageScreen extends StatelessWidget {
   final String message;
   final String actionLabel;
   final Future<void> Function() onAction;
-  final String? secondaryLabel;
-  final Future<void> Function()? onSecondary;
 
   @override
   Widget build(BuildContext context) => _ChromeMessage(
@@ -458,17 +440,6 @@ class _SessionMessageScreen extends StatelessWidget {
           child: Text(actionLabel),
         ),
       ),
-      if (secondaryLabel != null && onSecondary != null) ...[
-        const SizedBox(height: AppSpacing.sm),
-        SizedBox(
-          height: AppSizes.touchTarget,
-          child: TextButton(
-            onPressed: onSecondary,
-            style: TextButton.styleFrom(foregroundColor: AppColors.onInk),
-            child: Text(secondaryLabel!),
-          ),
-        ),
-      ],
     ],
   );
 }
