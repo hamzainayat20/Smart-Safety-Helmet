@@ -9,6 +9,15 @@ Parameters:
   ConfigurationParameterName:
     Type: String
     Description: Name of the encrypted standard SSM configuration parameter.
+  GroqApiKeyParameterName:
+    Type: String
+    Default: /smart-safety/staging/groq-api-key
+    Description: Name of the encrypted SSM SecureString containing the Groq API key.
+  GroqModel:
+    Type: String
+    Default: openai/gpt-oss-120b
+    AllowedPattern: '^[A-Za-z0-9._/-]+$'
+    Description: Groq production model ID used by the explanation assistant.
   EnvironmentName:
     Type: String
     Default: staging
@@ -25,6 +34,11 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: !Ref EnvironmentName
+      CorsConfiguration:
+        AllowOrigins: ['*']
+        AllowHeaders: [authorization, content-type]
+        AllowMethods: [POST, OPTIONS]
+        MaxAge: 600
       DefaultRouteSettings:
         ThrottlingBurstLimit: 5
         ThrottlingRateLimit: 1
@@ -72,6 +86,35 @@ Resources:
             Method: POST
             Path: /v1/telemetry
 
+  AssistantFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub smart-safety-${EnvironmentName}-assistant
+      Runtime: nodejs22.x
+      Architectures: [x86_64]
+      CodeUri: assistant/
+      Handler: handler.handler
+      MemorySize: 512
+      Timeout: 20
+      Environment:
+        Variables:
+          CONFIGURATION_PARAMETER_NAME: !Ref ConfigurationParameterName
+          FIREBASE_DATABASE_URL: !Ref FirebaseDatabaseUrl
+          GROQ_API_KEY_PARAMETER_NAME: !Ref GroqApiKeyParameterName
+          GROQ_MODEL: !Ref GroqModel
+      Policies:
+        - SSMParameterWithSlashPrefixReadPolicy:
+            ParameterName: !Ref ConfigurationParameterName
+        - SSMParameterWithSlashPrefixReadPolicy:
+            ParameterName: !Ref GroqApiKeyParameterName
+      Events:
+        Assistant:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TelemetryApi
+            Method: POST
+            Path: /v1/assistant
+
   InferenceLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
@@ -86,9 +129,19 @@ Resources:
       LogGroupName: !Sub /aws/lambda/smart-safety-${EnvironmentName}-ingestion
       RetentionInDays: 7
 
+  AssistantLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/smart-safety-${EnvironmentName}-assistant
+      RetentionInDays: 7
+
 Outputs:
   TelemetryEndpoint:
     Description: Signed staging telemetry endpoint. Never embed backend credentials.
     Value: !Sub https://${TelemetryApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${EnvironmentName}/v1/telemetry
   InferenceFunctionName:
     Value: !Ref InferenceFunction
+  AssistantEndpoint:
+    Description: Authenticated on-demand safety explanation endpoint.
+    Value: !Sub https://${TelemetryApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${EnvironmentName}/v1/assistant

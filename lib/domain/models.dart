@@ -20,6 +20,22 @@ final class ModelValidationException implements FormatException {
   String toString() => 'ModelValidationException: $message';
 }
 
+final class AssistantReply {
+  const AssistantReply({
+    required this.answer,
+    required this.disclaimer,
+    required this.helmetId,
+    required this.sourceEventId,
+    required this.generatedAt,
+  });
+
+  final String answer;
+  final String disclaimer;
+  final String helmetId;
+  final String sourceEventId;
+  final DateTime generatedAt;
+}
+
 enum SafetySeverity { unassessed, safe, warning, critical }
 
 enum InferenceStatus {

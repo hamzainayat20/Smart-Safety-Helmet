@@ -11,6 +11,7 @@ import 'application/app_dependencies.dart';
 import 'application/gps_map_view_model.dart';
 import 'application/session_controller.dart';
 import 'data/firebase_repositories.dart';
+import 'data/aws_assistant_repository.dart';
 import 'data/firebase_notification_repository.dart';
 import 'data/firebase_realtime_repositories.dart';
 import 'dashboard_screen.dart';
@@ -52,6 +53,7 @@ void main() async {
           helmets: RtdbHelmetRepository(),
           readings: RtdbReadingRepository(),
           assessments: RtdbAssessmentRepository(),
+          assistant: AwsAssistantRepository(),
           alerts: RtdbAlertRepository(functions: functions),
           configuration: RtdbConfigurationRepository(),
           notifications: notifications,

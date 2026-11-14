@@ -8,6 +8,8 @@ paths. Nothing in this directory deploys automatically.
 
 `ESP32 -> API Gateway -> ingestion Lambda -> private inference Lambda -> Firebase RTDB -> Flutter`
 
+`Flutter -> authenticated assistant route -> assistant Lambda -> Groq`
+
 The public endpoint still requires the existing per-helmet HMAC headers. The
 inference Lambda has no API Gateway event and is invokable only through IAM.
 Both model artifacts are loaded by one private Python function. The ingestion
@@ -47,6 +49,8 @@ From the repository root:
 ```powershell
 npm install --prefix aws/ingestion
 npm test --prefix aws/ingestion
+npm install --prefix aws/assistant
+npm test --prefix aws/assistant
 inference_service\.venv\Scripts\python.exe -m pytest inference_service\tests -q
 sam validate --lint --template-file aws/template.yaml
 sam build --template-file aws/template.yaml
@@ -62,8 +66,8 @@ Before running `sam deploy --guided`, review:
 1. Region and current AWS credit expiry.
 2. The CloudFormation change set.
 3. API Gateway throttling: 1 request/second with a burst of 5.
-4. API Gateway throttling protects this low-quota staging account; Lambda
-   reserved concurrency is intentionally unset.
+4. API Gateway throttling protects this low-quota staging account. Assistant
+   concurrency is capped at two; telemetry and inference behavior is unchanged.
 5. Seven-day CloudWatch retention.
 6. The exact SecureString parameter name and Firebase staging database URL.
 7. No production data, credentials, or physical-hardware claims.
@@ -79,3 +83,55 @@ Only after duplicate, replay, malformed-payload, and assessment tests pass
 should firmware be pointed at the API endpoint. Normal telemetry must remain at
 or below the existing 30 requests/minute per-helmet limit; critical events may
 be sent immediately.
+
+## Groq assistant key
+
+The conversational assistant uses a separate standard SSM `SecureString`:
+
+`/smart-safety/staging/groq-api-key`
+
+Never place the Groq API key in Flutter, Lambda environment variables,
+CloudFormation parameters, source control, command history, or logs. The helper
+script prompts for the value with hidden input and sends it to SSM through a
+temporary file that is deleted in a `finally` block:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  ".\aws\scripts\put-groq-api-key.ps1"
+```
+
+The IAM policy in
+`aws/iam/smart-safety-staging-groq-secret-writer.json` grants only the two
+operations required to create this exact parameter. Attach it temporarily to
+the deployment user, run the helper, verify the parameter metadata without
+decrypting it, and then remove the temporary writer policy. The assistant
+Lambda receives read-only permissions for this exact parameter and the existing
+Firebase configuration parameter. It decrypts both only during cold-start
+initialization; neither secret is returned to Flutter or logged.
+
+## Authenticated assistant endpoint
+
+`POST /v1/assistant` accepts only this JSON body:
+
+```json
+{
+  "helmetId": "helmet001",
+  "question": "What does the current assessment mean?"
+}
+```
+
+The caller must send its current Firebase ID token in
+`Authorization: Bearer <token>`. The Lambda verifies token revocation and then
+rechecks the trusted RTDB profile and helmet assignment. Administrators may
+access any helmet; supervisors need both the site and helmet assignment; workers
+must be assigned to that helmet.
+
+Only selected current readings, the current deterministic assessment, and
+approved recommendation text are sent to Groq. Raw MQ-7/MQ-135 values remain
+diagnostic and are never presented as calibrated ppm. The assistant explains
+the prediction; it does not replace the fall/gas models or safety rules.
+
+The SAM stack output named `AssistantEndpoint` provides the deployed URL. Do
+not connect Flutter until the deployment change set has been reviewed and the
+endpoint has passed authentication, cross-helmet, missing-data, and prompt-
+injection smoke tests.

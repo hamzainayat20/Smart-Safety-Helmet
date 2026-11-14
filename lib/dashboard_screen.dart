@@ -13,6 +13,7 @@ import 'user_role.dart';
 import 'worker_alerts_page.dart';
 import 'worker_dashboard_page.dart';
 import 'worker_profile_page.dart';
+import 'safety_assistant_page.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
@@ -87,6 +88,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           selectedIcon: Icons.engineering_rounded,
           label: 'Helmets',
         ),
+        const AppNavItem(
+          icon: Icons.support_agent_outlined,
+          selectedIcon: Icons.support_agent_rounded,
+          label: 'Assistant',
+        ),
       ];
     }
     final openAlerts = _viewModel.alerts
@@ -108,6 +114,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         icon: Icons.person_outline_rounded,
         selectedIcon: Icons.person_rounded,
         label: 'Profile',
+      ),
+      const AppNavItem(
+        icon: Icons.support_agent_outlined,
+        selectedIcon: Icons.support_agent_rounded,
+        label: 'Assistant',
       ),
     ];
   }
@@ -136,6 +147,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               viewModel: _viewModel,
               onSignOut: widget.session.signOut,
             ),
+            SafetyAssistantPage(
+              viewModel: _viewModel,
+              onSignOut: widget.session.signOut,
+            ),
           ]
         : <Widget>[
             WorkerDashboardPage(
@@ -145,6 +160,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             WorkerAlertsPage(viewModel: _viewModel),
             WorkerProfilePage(
+              viewModel: _viewModel,
+              onSignOut: widget.session.signOut,
+            ),
+            SafetyAssistantPage(
               viewModel: _viewModel,
               onSignOut: widget.session.signOut,
             ),

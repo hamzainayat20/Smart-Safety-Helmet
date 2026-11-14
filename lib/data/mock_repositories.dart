@@ -1009,3 +1009,19 @@ final class MockConfigurationRepository implements ConfigurationRepository {
     data.configurations[configuration.helmetId] = configuration;
   }
 }
+
+final class MockAssistantRepository implements AssistantRepository {
+  @override
+  Future<AssistantReply> ask({
+    required String helmetId,
+    required String question,
+  }) async => AssistantReply(
+    answer:
+        'The current demo assessment is safe. Continue normal monitoring and follow approved site procedures if conditions change.',
+    disclaimer:
+        'Demo decision-support explanation only; follow approved site procedures.',
+    helmetId: helmetId,
+    sourceEventId: 'demo-assessment-001',
+    generatedAt: DateTime.utc(2026, 1, 1, 12),
+  );
+}

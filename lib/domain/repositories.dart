@@ -209,6 +209,26 @@ abstract interface class ConfigurationRepository {
   });
 }
 
+abstract interface class AssistantRepository {
+  Future<AssistantReply> ask({
+    required String helmetId,
+    required String question,
+  });
+}
+
+final class NoopAssistantRepository implements AssistantRepository {
+  const NoopAssistantRepository();
+
+  @override
+  Future<AssistantReply> ask({
+    required String helmetId,
+    required String question,
+  }) => throw const RepositoryAccessException(
+    'ASSISTANT_UNAVAILABLE',
+    'The safety assistant is not configured for this build.',
+  );
+}
+
 bool userCanAccessHelmet(UserProfile actor, Helmet helmet) {
   if (!actor.active) return false;
   switch (actor.role) {

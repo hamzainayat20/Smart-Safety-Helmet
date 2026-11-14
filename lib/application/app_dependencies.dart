@@ -32,6 +32,7 @@ final class AppDependencies {
     required this.configuration,
     required this.dataSourceKind,
     this.notifications = const NoopNotificationRepository(),
+    this.assistant = const NoopAssistantRepository(),
     SensitiveDataRegistry? sensitiveData,
   }) : sensitiveData = sensitiveData ?? SensitiveDataRegistry();
 
@@ -44,6 +45,7 @@ final class AppDependencies {
   final AlertRepository alerts;
   final ConfigurationRepository configuration;
   final NotificationRepository notifications;
+  final AssistantRepository assistant;
   final DataSourceKind dataSourceKind;
   final SensitiveDataRegistry sensitiveData;
 
@@ -69,6 +71,7 @@ final class AppDependencies {
       helmets: MockHelmetRepository(data),
       readings: MockReadingRepository(data, backendConnected: backendConnected),
       assessments: MockAssessmentRepository(data),
+      assistant: MockAssistantRepository(),
       alerts: MockAlertRepository(data),
       configuration: MockConfigurationRepository(data),
       dataSourceKind: DataSourceKind.deterministicMock,

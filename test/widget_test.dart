@@ -63,6 +63,46 @@ void main() {
     expect(find.text('87 %'), findsOneWidget);
   });
 
+  testWidgets('worker can open the assistant and receive a demo explanation', (
+    tester,
+  ) async {
+    final dependencies = AppDependencies.allMocks(
+      initialUid: 'worker-ali',
+      referenceTimeUtc: DateTime.now().toUtc(),
+    );
+
+    await tester.pumpWidget(
+      MyApp(dependencies: dependencies, splashDuration: Duration.zero),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Assistant'));
+    await tester.pumpAndSettle();
+    expect(find.text('Safety Assistant'), findsOneWidget);
+    expect(find.text('H-03'), findsOneWidget);
+
+    await tester.enterText(
+      find.byType(TextField),
+      'Summarize the current safety assessment.',
+    );
+    await tester.ensureVisible(find.text('Ask assistant'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Ask assistant'));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Assistant response'),
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Assistant response'), findsOneWidget);
+    expect(
+      find.textContaining('current demo assessment is safe'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Demo decision-support'), findsOneWidget);
+  });
+
   testWidgets('disconnected backend marks cached worker values stale', (
     tester,
   ) async {
