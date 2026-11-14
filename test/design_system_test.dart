@@ -74,22 +74,44 @@ void main() {
       };
       for (final entry in styles.entries) {
         expect(entry.value?.fontSize, isNotNull, reason: entry.key);
-        expect(entry.value!.fontSize, greaterThanOrEqualTo(14), reason: entry.key);
+        expect(
+          entry.value!.fontSize,
+          greaterThanOrEqualTo(14),
+          reason: entry.key,
+        );
       }
     });
 
     test('text colours meet WCAG AAA on their backgrounds', () {
       for (final background in [AppColors.surface, AppColors.canvas]) {
-        expect(contrast(AppColors.textPrimary, background), greaterThanOrEqualTo(7));
-        expect(contrast(AppColors.textSecondary, background), greaterThanOrEqualTo(7));
+        expect(
+          contrast(AppColors.textPrimary, background),
+          greaterThanOrEqualTo(7),
+        );
+        expect(
+          contrast(AppColors.textSecondary, background),
+          greaterThanOrEqualTo(7),
+        );
       }
       for (final background in [AppColors.ink, AppColors.inkRaised]) {
         expect(contrast(AppColors.onInk, background), greaterThanOrEqualTo(7));
-        expect(contrast(AppColors.onInkMuted, background), greaterThanOrEqualTo(7));
+        expect(
+          contrast(AppColors.onInkMuted, background),
+          greaterThanOrEqualTo(7),
+        );
       }
-      expect(contrast(AppColors.onPrimary, AppColors.primary), greaterThanOrEqualTo(7));
-      expect(contrast(AppColors.interactive, AppColors.surface), greaterThanOrEqualTo(7));
-      expect(contrast(AppColors.borderControl, AppColors.surface), greaterThanOrEqualTo(3));
+      expect(
+        contrast(AppColors.onPrimary, AppColors.primary),
+        greaterThanOrEqualTo(7),
+      );
+      expect(
+        contrast(AppColors.interactive, AppColors.surface),
+        greaterThanOrEqualTo(7),
+      );
+      expect(
+        contrast(AppColors.borderControl, AppColors.surface),
+        greaterThanOrEqualTo(3),
+      );
     });
   });
 
@@ -97,10 +119,26 @@ void main() {
     test('each status meets contrast targets in every context', () {
       for (final status in SafetyStatus.values) {
         final p = status.palette;
-        expect(contrast(p.text, p.tint), greaterThanOrEqualTo(7), reason: '$status text');
-        expect(contrast(p.strong, AppColors.surface), greaterThanOrEqualTo(3), reason: '$status strong');
-        expect(contrast(p.onInk, AppColors.ink), greaterThanOrEqualTo(7), reason: '$status onInk');
-        expect(contrast(p.onInk, AppColors.inkRaised), greaterThanOrEqualTo(7), reason: '$status onInk raised');
+        expect(
+          contrast(p.text, p.tint),
+          greaterThanOrEqualTo(7),
+          reason: '$status text',
+        );
+        expect(
+          contrast(p.strong, AppColors.surface),
+          greaterThanOrEqualTo(3),
+          reason: '$status strong',
+        );
+        expect(
+          contrast(p.onInk, AppColors.ink),
+          greaterThanOrEqualTo(7),
+          reason: '$status onInk',
+        );
+        expect(
+          contrast(p.onInk, AppColors.inkRaised),
+          greaterThanOrEqualTo(7),
+          reason: '$status onInk raised',
+        );
       }
     });
 
@@ -108,7 +146,10 @@ void main() {
       final values = SafetyStatus.values;
       expect(values.map((s) => s.icon).toSet(), hasLength(values.length));
       expect(values.map((s) => s.label).toSet(), hasLength(values.length));
-      expect(values.map((s) => s.palette.strong).toSet(), hasLength(values.length));
+      expect(
+        values.map((s) => s.palette.strong).toSet(),
+        hasLength(values.length),
+      );
     });
 
     test('only a safe monitoring state is ever shown as normal', () {
@@ -120,20 +161,50 @@ void main() {
           reason: '$state -> $status',
         );
       }
-      expect(safetyStatusForMonitoringState(MonitoringState.sensorFault), SafetyStatus.critical);
-      expect(safetyStatusForMonitoringState(MonitoringState.offline), SafetyStatus.offline);
-      expect(safetyStatusForMonitoringState(MonitoringState.stale), SafetyStatus.stale);
-      expect(safetyStatusForMonitoringState(MonitoringState.warmingUp), SafetyStatus.pending);
-      expect(safetyStatusForMonitoringState(MonitoringState.permissionDenied), SafetyStatus.unknown);
-      expect(safetyStatusForMonitoringState(MonitoringState.backendError), SafetyStatus.unknown);
-      expect(safetyStatusForMonitoringState(MonitoringState.empty), SafetyStatus.unknown);
+      expect(
+        safetyStatusForMonitoringState(MonitoringState.sensorFault),
+        SafetyStatus.critical,
+      );
+      expect(
+        safetyStatusForMonitoringState(MonitoringState.offline),
+        SafetyStatus.offline,
+      );
+      expect(
+        safetyStatusForMonitoringState(MonitoringState.stale),
+        SafetyStatus.stale,
+      );
+      expect(
+        safetyStatusForMonitoringState(MonitoringState.warmingUp),
+        SafetyStatus.pending,
+      );
+      expect(
+        safetyStatusForMonitoringState(MonitoringState.permissionDenied),
+        SafetyStatus.unknown,
+      );
+      expect(
+        safetyStatusForMonitoringState(MonitoringState.backendError),
+        SafetyStatus.unknown,
+      );
+      expect(
+        safetyStatusForMonitoringState(MonitoringState.empty),
+        SafetyStatus.unknown,
+      );
     });
 
     test('unassessed severity and unknown risk are never normal', () {
-      expect(safetyStatusForSeverity(SafetySeverity.unassessed), SafetyStatus.unknown);
-      expect(safetyStatusForAssessmentRisk(AssessmentRisk.unknown), SafetyStatus.unknown);
+      expect(
+        safetyStatusForSeverity(SafetySeverity.unassessed),
+        SafetyStatus.unknown,
+      );
+      expect(
+        safetyStatusForAssessmentRisk(AssessmentRisk.unknown),
+        SafetyStatus.unknown,
+      );
       expect(safetyStatusForSeverity(SafetySeverity.safe), SafetyStatus.normal);
-      expect(safetyStatusForAssessmentRisk(AssessmentRisk.critical), SafetyStatus.critical);
+      expect(
+        safetyStatusForAssessmentRisk(AssessmentRisk.critical),
+        SafetyStatus.critical,
+      );
     });
 
     test('monitoringStateColor now comes from the status roles', () {
@@ -153,7 +224,9 @@ void main() {
       tester,
     ) async {
       final semantics = tester.ensureSemantics();
-      await tester.pumpWidget(host(const StatusChip(status: SafetyStatus.critical)));
+      await tester.pumpWidget(
+        host(const StatusChip(status: SafetyStatus.critical)),
+      );
 
       expect(find.text('Critical'), findsOneWidget);
       expect(find.byIcon(SafetyStatus.critical.icon), findsOneWidget);
@@ -339,7 +412,10 @@ void main() {
 
       expect(find.text('—'), findsOneWidget);
       expect(find.text('0'), findsNothing);
-      expect(find.bySemanticsLabel('Low battery: not available'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Low battery: not available'),
+        findsOneWidget,
+      );
       semantics.dispose();
     });
   });
@@ -359,7 +435,9 @@ void main() {
             home: ComponentGalleryPage(referenceTime: reference),
           ),
         );
-        await tester.pumpAndSettle();
+        // The gallery intentionally includes indeterminate loading indicators,
+        // so waiting for every animation to settle would never complete.
+        await tester.pump();
 
         expect(tester.takeException(), isNull);
         expect(find.text('Component gallery'), findsOneWidget);
@@ -381,7 +459,9 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      // The gallery intentionally includes indeterminate loading indicators,
+      // so waiting for every animation to settle would never complete.
+      await tester.pump();
 
       expect(tester.takeException(), isNull);
     });
@@ -395,12 +475,17 @@ void main() {
           home: ComponentGalleryPage(referenceTime: reference),
         ),
       );
-      await tester.pumpAndSettle();
+      // The gallery intentionally includes indeterminate loading indicators,
+      // so waiting for every animation to settle would never complete.
+      await tester.pump();
 
       final styles = visibleTextStyles(tester);
       expect(styles, isNotEmpty);
       for (final style in styles) {
-        expect(style.fontSize, greaterThanOrEqualTo(AppTypography.minimumFontSize));
+        expect(
+          style.fontSize,
+          greaterThanOrEqualTo(AppTypography.minimumFontSize),
+        );
       }
     });
 
@@ -413,13 +498,23 @@ void main() {
           home: ComponentGalleryPage(referenceTime: reference),
         ),
       );
-      await tester.pumpAndSettle();
+      // The gallery intentionally includes indeterminate loading indicators,
+      // so waiting for every animation to settle would never complete.
+      await tester.pump();
 
       for (final type in [FilledButton, OutlinedButton, IconButton]) {
         for (final element in find.byType(type).evaluate()) {
           final size = tester.getSize(find.byWidget(element.widget));
-          expect(size.height, greaterThanOrEqualTo(AppSizes.touchTarget), reason: '$type');
-          expect(size.width, greaterThanOrEqualTo(AppSizes.touchTarget), reason: '$type');
+          expect(
+            size.height,
+            greaterThanOrEqualTo(AppSizes.touchTarget),
+            reason: '$type',
+          );
+          expect(
+            size.width,
+            greaterThanOrEqualTo(AppSizes.touchTarget),
+            reason: '$type',
+          );
         }
       }
     });

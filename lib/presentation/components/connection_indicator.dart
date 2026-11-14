@@ -48,7 +48,7 @@ class ConnectionIndicator extends StatelessWidget {
           children: [
             Icon(
               connected == false ? Icons.cloud_off_outlined : Icons.circle,
-              size: connected == false ? AppSizes.iconSm : 10,
+              size: AppSizes.iconSm,
               color: color,
             ),
             const SizedBox(width: AppSpacing.sm),
@@ -57,7 +57,9 @@ class ConnectionIndicator extends StatelessWidget {
                 '$sourceLabel · $state',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.label.copyWith(color: AppColors.onInkMuted),
+                style: AppTypography.label.copyWith(
+                  color: AppColors.onInkMuted,
+                ),
               ),
             ),
           ],

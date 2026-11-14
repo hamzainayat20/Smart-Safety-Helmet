@@ -78,7 +78,7 @@ class AppPageHeader extends StatelessWidget {
                               color: AppColors.onInk,
                             ),
                           ),
-                          if (titleSuffix != null) titleSuffix!,
+                          ?titleSuffix,
                         ],
                       ),
                       if (subtitle != null)
