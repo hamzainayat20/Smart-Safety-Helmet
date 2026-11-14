@@ -44,3 +44,13 @@ String alertTypeLabel(AlertType type) => switch (type) {
   AlertType.sensorFault => 'Sensor Fault',
   AlertType.connectivity => 'Connectivity',
 };
+
+String _twoDigits(int value) => value.toString().padLeft(2, '0');
+
+/// Unambiguous, readable UTC timestamp: `2026-11-08 14:32:05 UTC`.
+String formatUtcTimestamp(DateTime timestamp) {
+  final utc = timestamp.toUtc();
+  return '${utc.year}-${_twoDigits(utc.month)}-${_twoDigits(utc.day)} '
+      '${_twoDigits(utc.hour)}:${_twoDigits(utc.minute)}:'
+      '${_twoDigits(utc.second)} UTC';
+}

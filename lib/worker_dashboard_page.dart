@@ -2,288 +2,606 @@ import 'package:flutter/material.dart';
 
 import 'application/dashboard_view_model.dart';
 import 'domain/models.dart';
+import 'presentation/design_system/design_system.dart';
 import 'presentation/formatters.dart';
+import 'presentation/helmet_history.dart';
 import 'presentation/monitoring_state.dart';
 import 'presentation/safety_assessment_card.dart';
+import 'presentation/sensor_limits.dart';
+import 'sensor_detail_screen.dart';
 
+/// Worker home: one status band that says what is happening and what to do,
+/// the two acute hazards (temperature, gas) with their recent trend, compact
+/// secondary readings, and the main actions in the thumb zone.
 class WorkerDashboardPage extends StatelessWidget {
   const WorkerDashboardPage({
     super.key,
     required this.viewModel,
     required this.onSignOut,
+    this.onOpenAlerts,
   });
 
   final DashboardViewModel viewModel;
   final VoidCallback onSignOut;
 
+  /// Switches to the worker's alerts tab. Hidden when not provided.
+  final VoidCallback? onOpenAlerts;
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: viewModel,
-    builder: (context, _) {
-      final helmet = viewModel.helmets.firstOrNull;
-      final reading = helmet == null
-          ? null
-          : viewModel.readingFor(helmet.helmetId);
-      final monitoringState = helmet == null
-          ? MonitoringState.empty
-          : viewModel.monitoringStateFor(helmet);
-      final state = helmet == null
-          ? 'Unassigned'
-          : viewModel.stateLabelFor(helmet);
-      final stateColor = monitoringStateColor(monitoringState);
-      return SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _header(),
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.only(top: 20),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF4F6FA),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(30),
-                    topRight: Radius.circular(30),
-                  ),
-                ),
-                child: viewModel.loadState == MonitoringState.loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : viewModel.loadState == MonitoringState.permissionDenied ||
-                          viewModel.loadState == MonitoringState.backendError
-                    ? MonitoringStatePanel(
-                        state: viewModel.loadState,
-                        title:
-                            viewModel.loadState ==
-                                MonitoringState.permissionDenied
-                            ? 'Monitoring permission denied'
-                            : 'Monitoring backend unavailable',
-                        message: viewModel.errorMessage,
-                        onRetry: viewModel.retry,
-                      )
-                    : ListView(
-                        padding: const EdgeInsets.all(20),
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.05),
-                                  blurRadius: 10,
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                Icon(
-                                  monitoringStateIcon(monitoringState),
-                                  color: stateColor,
-                                  size: 60,
-                                ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  helmet == null
-                                      ? 'No helmet assigned'
-                                      : 'Status: ${state.toUpperCase()}',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                    color: stateColor,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  helmet == null
-                                      ? 'Contact your supervisor for an assignment.'
-                                      : monitoringStateDescription(
-                                          monitoringState,
-                                        ),
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Colors.black.withValues(alpha: 0.4),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                if (helmet != null) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    viewModel.lastUpdateFor(helmet) == null
-                                        ? 'No update has been received'
-                                        : 'Last update ${formatRelativeTime(viewModel.lastUpdateFor(helmet)!)} • ${viewModel.dataSourceLabel}',
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      color: Colors.black54,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                          if (helmet != null) ...[
-                            const SizedBox(height: 20),
-                            SafetyAssessmentCard(
-                              reading: reading,
-                              assessment: viewModel.assessmentFor(
-                                helmet.helmetId,
-                              ),
-                              compact: true,
-                            ),
-                            const SizedBox(height: 20),
-                            Text(
-                              'Your Helmet Status • ${helmet.helmetId}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 15),
-                            _StatusRow(
-                              label: 'Battery',
-                              value: formatMeasurement(
-                                reading?.batteryPct,
-                                SensorUnit.percent,
-                                fractionDigits: 0,
-                              ),
-                              icon: Icons.battery_full,
-                              color: reading?.batteryPct == null
-                                  ? Colors.grey
-                                  : Colors.green,
-                            ),
-                            _StatusRow(
-                              label: 'Humidity',
-                              value: formatMeasurement(
-                                reading?.humidityPct,
-                                SensorUnit.percentRelativeHumidity,
-                              ),
-                              icon: Icons.water_drop,
-                              color: const Color(0xFF2F80ED),
-                            ),
-                            _StatusRow(
-                              label: 'Temperature',
-                              value: formatMeasurement(
-                                reading?.temperatureC,
-                                SensorUnit.degreesCelsius,
-                              ),
-                              icon: Icons.thermostat,
-                              color: Colors.orange,
-                            ),
-                            _StatusRow(
-                              label: reading?.gasWarmUp == true
-                                  ? 'Gas Level • Warming Up'
-                                  : 'Gas Level',
-                              value: formatMeasurement(
-                                reading?.gasPpm,
-                                SensorUnit.partsPerMillion,
-                              ),
-                              icon: Icons.cloud,
-                              color: const Color(0xFF2F80ED),
-                            ),
-                          ],
-                        ],
-                      ),
-              ),
-            ),
-          ],
-        ),
-      );
-    },
+    builder: (context, _) => SafeArea(
+      bottom: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _header(),
+          Expanded(child: ContentSheet(child: _body(context))),
+        ],
+      ),
+    ),
   );
 
-  Widget _header() => Padding(
-    padding: const EdgeInsets.fromLTRB(25, 20, 25, 0),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _header() => AppPageHeader(
+    eyebrow: 'WELCOME BACK',
+    title: viewModel.profile.displayName,
+    titleSuffix: const RoleTag(label: 'Worker'),
+    subtitle: 'Site: ${viewModel.profile.organizationName ?? 'Not assigned'}',
+    actions: [
+      HeaderIconButton(
+        icon: Icons.logout_rounded,
+        tooltip: 'Sign out',
+        onPressed: onSignOut,
+      ),
+    ],
+    bottom: Align(
+      alignment: Alignment.centerLeft,
+      child: ConnectionIndicator(
+        sourceLabel: viewModel.dataSourceLabel,
+        connected: viewModel.backendConnected,
+      ),
+    ),
+  );
+
+  Widget _body(BuildContext context) {
+    if (viewModel.loadState == MonitoringState.loading) {
+      return const StateView(
+        kind: StateViewKind.loading,
+        title: 'Loading your helmet',
+        message: 'Connecting to your assigned helmet…',
+      );
+    }
+    if (viewModel.loadState == MonitoringState.permissionDenied ||
+        viewModel.loadState == MonitoringState.backendError) {
+      return MonitoringStatePanel(
+        state: viewModel.loadState,
+        title: viewModel.loadState == MonitoringState.permissionDenied
+            ? 'Monitoring permission denied'
+            : 'Monitoring backend unavailable',
+        message: viewModel.errorMessage,
+        onRetry: viewModel.retry,
+      );
+    }
+
+    final helmet = viewModel.helmets.firstOrNull;
+    final reading = helmet == null
+        ? null
+        : viewModel.readingFor(helmet.helmetId);
+    final assessment = helmet == null
+        ? null
+        : viewModel.assessmentFor(helmet.helmetId);
+    final monitoringState = helmet == null
+        ? MonitoringState.empty
+        : viewModel.monitoringStateFor(helmet);
+    final lastUpdate = helmet == null ? null : viewModel.lastUpdateFor(helmet);
+    final notLive =
+        monitoringState == MonitoringState.stale ||
+        monitoringState == MonitoringState.offline;
+
+    // A fixed, short set of sections: a plain scroll view keeps every reading
+    // built (and reachable by screen readers) without lazy-list overhead.
+    final list = SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+        _StatusBand(
+          status: safetyStatusForMonitoringState(monitoringState),
+          icon: monitoringStateIcon(monitoringState),
+          title: helmet == null
+              ? 'No helmet assigned'
+              : 'Status: ${viewModel.stateLabelFor(helmet).toUpperCase()}',
+          description: helmet == null
+              ? 'Contact your supervisor for an assignment.'
+              : monitoringStateDescription(monitoringState),
+          // Only approved, backend-issued recommendations; never shown for a
+          // reading that is no longer live.
+          action: notLive ? null : assessment?.recommendations.firstOrNull,
+          footnote: helmet == null
+              ? null
+              : lastUpdate == null
+              ? 'No update has been received'
+              : 'Last update ${formatRelativeTime(lastUpdate)} • ${viewModel.dataSourceLabel}',
+          facts: helmet == null
+              ? const []
+              : [
+                  'Helmet ${helmet.helmetId}',
+                  reading == null
+                      ? 'Link unknown'
+                      : 'Link ${_connectivityLabel(reading.connectivity)}',
+                  reading == null
+                      ? 'GPS unknown'
+                      : 'GPS ${_gpsLabel(reading.gpsStatus)}',
+                ],
+        ),
+        if (helmet != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          SafetyAssessmentCard(
+            reading: reading,
+            assessment: assessment,
+            compact: true,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          HelmetLimitsBuilder(
+            viewModel: viewModel,
+            helmetId: helmet.helmetId,
+            builder: (context, limits) => HelmetHistoryBuilder(
+              viewModel: viewModel,
+              helmetId: helmet.helmetId,
+              builder: (context, history) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SectionHeader(
+                    title: 'Your Helmet Status • ${helmet.helmetId}',
+                    subtitle: limits.sourceLabel,
+                  ),
+                  ..._readings(reading, notLive, limits, history),
+                ],
+              ),
+            ),
+          ),
+        ],
+        ],
+      ),
+    );
+
+    if (helmet == null) return list;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Welcome back,',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 13,
+        Expanded(child: list),
+        _ActionBar(
+          onOpenAlerts: onOpenAlerts,
+          openAlerts: viewModel.alerts
+              .where((alert) => alert.status != AlertStatus.resolved)
+              .length,
+          onOpenDetails: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => SensorDetailScreen(
+                helmetId: helmet.helmetId,
+                workerName: viewModel.profile.displayName,
+                viewModel: viewModel,
               ),
             ),
-            IconButton(
-              onPressed: onSignOut,
-              icon: const Icon(Icons.logout, color: Colors.white, size: 20),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Text(
-              viewModel.profile.displayName,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const Text(
-              ' — Worker',
-              style: TextStyle(
-                color: Color(0xFF2F80ED),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        Text(
-          'Site: ${viewModel.profile.organizationName ?? 'Not assigned'}',
-          style: const TextStyle(
-            color: Color(0xFF2F80ED),
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
           ),
         ),
       ],
-    ),
-  );
+    );
+  }
+
+  List<Widget> _readings(
+    SensorReading? reading,
+    bool notLive,
+    SensorLimits limits,
+    List<SensorReading> history,
+  ) {
+    SafetyStatus shown(SafetyStatus status) =>
+        notLive && reading != null ? SafetyStatus.stale : status;
+    String? label(SafetyStatus status) =>
+        notLive && reading != null ? null : readingStatusLabel(status);
+
+    final battery = SensorLimits.battery(reading?.batteryPct);
+    final humidity = limits.humidity(reading?.humidityPct);
+    final temperature = limits.temperature(reading?.temperatureC);
+    final warming = reading?.gasWarmUp == true;
+    final gas = limits.gas(reading?.gasPpm, warmingUp: warming);
+
+    return [
+      ResponsiveTileGrid(
+        minTileWidth: 280,
+        children: [
+          SensorCard(
+            label: 'Temperature',
+            icon: Icons.thermostat_rounded,
+            value: reading?.temperatureC,
+            unit: SensorUnit.degreesCelsius,
+            status: shown(temperature),
+            statusLabel: label(temperature),
+            gauge: ThresholdGauge(
+              value: reading?.temperatureC,
+              max: limits.temperatureCriticalC * 1.2,
+              warningAt: limits.temperatureWarningC,
+              criticalAt: limits.temperatureCriticalC,
+              status: shown(temperature),
+              unit: ' °C',
+            ),
+            trend: TrendSparkline(
+              values: trendSeries(history, (r) => r.temperatureC),
+              status: shown(temperature),
+              warningAt: limits.temperatureWarningC,
+              unit: ' °C',
+            ),
+          ),
+          SensorCard(
+            label: warming ? 'Gas Level • Warming Up' : 'Gas Level',
+            icon: Icons.air_rounded,
+            value: reading?.gasPpm,
+            unit: SensorUnit.partsPerMillion,
+            status: shown(gas),
+            statusLabel: label(gas),
+            gauge: ThresholdGauge(
+              value: warming ? null : reading?.gasPpm,
+              max: limits.gasCriticalPpm * 1.5,
+              warningAt: limits.gasWarningPpm,
+              criticalAt: limits.gasCriticalPpm,
+              status: shown(gas),
+              unit: ' ppm',
+            ),
+            // A warming sensor's values are not usable, so no trend either.
+            trend: warming
+                ? null
+                : TrendSparkline(
+                    values: trendSeries(
+                      history.where((r) => !r.gasWarmUp).toList(),
+                      (r) => r.gasPpm,
+                    ),
+                    status: shown(gas),
+                    warningAt: limits.gasWarningPpm,
+                    unit: ' ppm',
+                  ),
+          ),
+        ],
+      ),
+      const SizedBox(height: AppSpacing.sm),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _CompactReading(
+              label: 'Humidity',
+              icon: Icons.water_drop_outlined,
+              value: formatMeasurement(
+                reading?.humidityPct,
+                SensorUnit.percentRelativeHumidity,
+              ),
+              hasValue: reading?.humidityPct != null,
+              status: shown(humidity),
+              statusLabel: label(humidity),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: _CompactReading(
+              label: 'Battery',
+              icon: Icons.battery_charging_full_rounded,
+              value: formatMeasurement(
+                reading?.batteryPct,
+                SensorUnit.percent,
+                fractionDigits: 0,
+              ),
+              hasValue: reading?.batteryPct != null,
+              status: shown(battery),
+              statusLabel: label(battery),
+            ),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  static String _connectivityLabel(ConnectivityStatus status) =>
+      switch (status) {
+        ConnectivityStatus.online => 'online',
+        ConnectivityStatus.degraded => 'degraded',
+        ConnectivityStatus.offlineBuffering => 'buffering',
+        ConnectivityStatus.offline => 'offline',
+      };
+
+  static String _gpsLabel(GpsStatus status) => switch (status) {
+    GpsStatus.valid => 'fix',
+    GpsStatus.acquiring => 'acquiring',
+    GpsStatus.lost => 'lost',
+    GpsStatus.invalid => 'unavailable',
+  };
 }
 
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({
-    required this.label,
-    required this.value,
+/// The one thing a worker must read: state, meaning, and the next action.
+/// Cross-fades when the state changes (instant under reduced motion).
+class _StatusBand extends StatelessWidget {
+  const _StatusBand({
+    required this.status,
     required this.icon,
-    required this.color,
+    required this.title,
+    required this.description,
+    required this.facts,
+    this.action,
+    this.footnote,
   });
-  final String label;
-  final String value;
+
+  final SafetyStatus status;
   final IconData icon;
-  final Color color;
+  final String title;
+  final String description;
+  final String? action;
+  final String? footnote;
+  final List<String> facts;
 
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(15),
-      border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: true,
+    child: AnimatedSwitcher(
+      duration: AppMotion.of(context, AppMotion.standard),
+      switchInCurve: AppMotion.enter,
+      switchOutCurve: AppMotion.exit,
+      child: KeyedSubtree(
+        key: ValueKey<SafetyStatus>(status),
+        child: _content(),
+      ),
     ),
-    child: Row(
-      children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(width: 15),
-        Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-        ),
-        const Spacer(),
-        Text(
-          value,
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-        ),
-      ],
+  );
+
+  Widget _content() {
+    final palette = status.palette;
+    return AppCard(
+      status: status,
+      color: palette.tint,
+      borderColor: palette.line,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: AppSpacing.xxl,
+                height: AppSpacing.xxl,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(color: palette.line),
+                ),
+                child: Icon(icon, size: AppSpacing.xl, color: palette.strong),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTypography.headline.copyWith(color: palette.text),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            description,
+            style: AppTypography.body.copyWith(color: AppColors.textPrimary),
+          ),
+          if (action != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: palette.line),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.directions_walk_rounded,
+                    size: AppSizes.iconLg,
+                    color: palette.strong,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'WHAT TO DO NOW',
+                          style: AppTypography.overline.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          action!,
+                          style: AppTypography.bodyStrong.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (footnote != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              footnote!,
+              style: AppTypography.caption.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+          if (facts.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final fact in facts)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Text(
+                      fact,
+                      style: AppTypography.label.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Secondary reading: label, value and status in a short tile.
+class _CompactReading extends StatelessWidget {
+  const _CompactReading({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.hasValue,
+    required this.status,
+    this.statusLabel,
+  });
+
+  final String label;
+  final IconData icon;
+  final String value;
+  final bool hasValue;
+  final SafetyStatus status;
+  final String? statusLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    // Missing data is never shown as normal.
+    final shown = !hasValue && status == SafetyStatus.normal
+        ? SafetyStatus.unknown
+        : status;
+    final chip = !hasValue && statusLabel == null
+        ? 'No reading'
+        : statusLabel ?? shown.label;
+    return AppCard(
+      status: shown.needsAttention ? shown : null,
+      semanticLabel: '$label, $value, $chip',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: AppSizes.iconSm, color: AppColors.textSecondary),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.label.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: ValueChangeHighlight(
+              value: value,
+              color: shown.palette.tint,
+              child: Text(
+                value,
+                style: AppTypography.subtitle.copyWith(
+                  color: hasValue
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          StatusChip(status: shown, label: chip),
+        ],
+      ),
+    );
+  }
+}
+
+/// Primary actions pinned above the navigation bar, in the thumb zone.
+class _ActionBar extends StatelessWidget {
+  const _ActionBar({
+    required this.onOpenDetails,
+    required this.onOpenAlerts,
+    required this.openAlerts,
+  });
+
+  final VoidCallback onOpenDetails;
+  final VoidCallback? onOpenAlerts;
+  final int openAlerts;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: const BoxDecoration(
+      color: AppColors.surface,
+      border: Border(top: BorderSide(color: AppColors.border)),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          if (onOpenAlerts != null) ...[
+            Expanded(
+              child: AppButton(
+                key: const Key('worker-open-alerts'),
+                label: openAlerts == 0
+                    ? 'View alerts'
+                    : 'View alerts ($openAlerts)',
+                icon: Icons.notifications_none_rounded,
+                variant: AppButtonVariant.secondary,
+                onPressed: onOpenAlerts,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+          ],
+          Expanded(
+            child: AppButton(
+              key: const Key('worker-open-details'),
+              label: 'Sensor details',
+              icon: Icons.speed_rounded,
+              onPressed: onOpenDetails,
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }

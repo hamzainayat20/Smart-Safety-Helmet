@@ -434,6 +434,14 @@ final class MockDataSet {
                 : InferenceStatus.completed,
             gasClass: entry.value.gasWarmUp ? GasClass.unknown : GasClass.noGas,
             confidence: entry.value.gasWarmUp ? null : 0.91,
+            probabilities: entry.value.gasWarmUp
+                ? const {}
+                : const {
+                    GasClass.mixture: 0.02,
+                    GasClass.noGas: 0.91,
+                    GasClass.perfume: 0.04,
+                    GasClass.smoke: 0.03,
+                  },
             modelVersion: 'mq7-mq135-demo',
             inputValid: !entry.value.gasWarmUp,
             outOfDistribution: false,

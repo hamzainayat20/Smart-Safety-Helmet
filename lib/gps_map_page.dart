@@ -10,7 +10,9 @@ import 'application/gps_map_view_model.dart';
 import 'application/map_availability_controller.dart';
 import 'domain/models.dart';
 import 'platform/maps/maps_runtime.dart';
+import 'presentation/design_system/design_system.dart';
 import 'presentation/formatters.dart';
+import 'sensor_detail_screen.dart';
 import 'user_role.dart';
 
 typedef SafetyMapBuilder =
@@ -71,30 +73,39 @@ class _GpsMapPageState extends State<GpsMapPage> {
       _mapAvailability,
     ]),
     builder: (context, _) => SafeArea(
+      bottom: false,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildMapHeader(),
           _buildMapArea(),
           Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Color(0xFFF4F6FA),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
-                ),
-              ),
+            child: ColoredBox(
+              color: AppColors.canvas,
               child: ListView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.xl,
+                ),
                 children: [
-                  const Text(
-                    'Worker Locations',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                  SectionHeader(
+                    title: 'Worker Locations',
+                    trailing: _mapViewModel.items.isEmpty
+                        ? null
+                        : Text(
+                            '${_mapViewModel.positionedItems.length}/${_mapViewModel.items.length} with GPS',
+                            style: AppTypography.caption.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                   ),
-                  const SizedBox(height: 15),
                   if (_mapViewModel.isLoading)
-                    const Center(child: CircularProgressIndicator())
+                    const Padding(
+                      padding: EdgeInsets.all(AppSpacing.lg),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
                   else if (_mapViewModel.permissionDenied)
                     const _MapMessage(
                       icon: Icons.lock_outline,
@@ -109,14 +120,20 @@ class _GpsMapPageState extends State<GpsMapPage> {
                       message: _mapViewModel.errorMessage!,
                     )
                   else if (_mapViewModel.items.isEmpty)
-                    const Text('No authorized active helmets are available.')
+                    const _MapMessage(
+                      icon: Icons.location_disabled_outlined,
+                      title: 'Nothing to track',
+                      message: 'No authorized active helmets are available.',
+                    )
                   else
-                    ..._mapViewModel.items.map(
-                      (item) => _LocationTile(
-                        item: item,
-                        onTap: () => _selectWorker(item),
+                    for (final item in _mapViewModel.items)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: _LocationTile(
+                          item: item,
+                          onTap: () => _selectWorker(item),
+                        ),
                       ),
-                    ),
                 ],
               ),
             ),
@@ -126,53 +143,21 @@ class _GpsMapPageState extends State<GpsMapPage> {
     ),
   );
 
-  Widget _buildMapHeader() => Padding(
-    padding: const EdgeInsets.all(20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.arrow_back, color: Colors.white, size: 16),
-                SizedBox(width: 8),
-                Text(
-                  'GPS Tracking',
-                  style: TextStyle(color: Colors.white, fontSize: 12),
-                ),
-              ],
-            ),
-            IconButton(
-              onPressed: widget.onSignOut,
-              icon: const Icon(Icons.logout, color: Colors.white, size: 18),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Worker Map',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        Text(
-          '${_mapViewModel.items.length} helmets • '
-          '${_mapViewModel.positionedItems.length} positioned • '
-          '${widget.viewModel.profile.organizationName ?? 'Site unassigned'} • '
-          '${_mapViewModel.dataSourceLabel}',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.6),
-            fontSize: 12,
-          ),
-        ),
-      ],
-    ),
+  Widget _buildMapHeader() => AppPageHeader(
+    eyebrow: 'GPS TRACKING',
+    title: 'Worker Map',
+    subtitle:
+        '${_mapViewModel.items.length} helmets • '
+        '${_mapViewModel.positionedItems.length} positioned • '
+        '${widget.viewModel.profile.organizationName ?? 'Site unassigned'} • '
+        '${_mapViewModel.dataSourceLabel}',
+    actions: [
+      HeaderIconButton(
+        icon: Icons.logout_rounded,
+        tooltip: 'Sign out',
+        onPressed: widget.onSignOut,
+      ),
+    ],
   );
 
   Widget _buildMapArea() {
@@ -228,9 +213,9 @@ class _GpsMapPageState extends State<GpsMapPage> {
           ),
           if (_mapViewModel.unpositionedItems.isNotEmpty)
             Positioned(
-              left: 8,
-              right: 8,
-              top: 8,
+              left: AppSpacing.sm,
+              right: AppSpacing.sm,
+              top: AppSpacing.sm,
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -241,8 +226,8 @@ class _GpsMapPageState extends State<GpsMapPage> {
               ),
             ),
           Positioned(
-            right: 10,
-            bottom: 8,
+            right: AppSpacing.sm,
+            bottom: AppSpacing.sm,
             child: _MapSourceBadge(label: _mapViewModel.dataSourceLabel),
           ),
         ],
@@ -277,99 +262,118 @@ class _GpsMapPageState extends State<GpsMapPage> {
     isScrollControlled: true,
     builder: (sheetContext) => SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          0,
+          AppSpacing.md,
+          AppSpacing.md,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
-                Icon(
-                  _stateIcon(item.markerState),
-                  color: _stateColor(item.markerState),
+                InitialsAvatar(
+                  name: item.workerName,
+                  size: AppSizes.touchTarget,
+                  status: _stateStatus(item.markerState),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(
                     item.workerName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
+                    style: AppTypography.title.copyWith(
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
-                _StatePill(state: item.markerState),
               ],
             ),
-            const SizedBox(height: 14),
-            _DetailRow(label: 'Helmet ID', value: item.helmet.helmetId),
-            _DetailRow(
+            const SizedBox(height: AppSpacing.sm),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _StatePill(state: item.markerState),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const Divider(),
+            KeyValueRow(label: 'Helmet ID', value: item.helmet.helmetId),
+            KeyValueRow(
               label: 'Sensor status',
               value: widget.viewModel.stateLabelFor(item.helmet),
             ),
-            _DetailRow(
+            KeyValueRow(
               label: 'Freshness',
               value: item.reading == null
                   ? 'No telemetry received'
                   : 'Updated ${formatRelativeTime(item.reading!.serverReceivedAt)}',
             ),
-            _DetailRow(label: 'GPS', value: _gpsDescription(item)),
-            if (item.activeAlert != null) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () {
-                    Navigator.pop(sheetContext);
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => AlertDetailScreen(
-                          profile: widget.viewModel.profile,
-                          alertId: item.activeAlert!.alertId,
-                          dependencies: widget.viewModel.dependencies,
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.warning_amber_rounded),
-                  label: const Text('View active alert'),
-                ),
-              ),
-              if (_canAcknowledge(item.activeAlert!))
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed:
-                        widget.viewModel.isAcknowledging(
-                          item.activeAlert!.alertId,
-                        )
-                        ? null
-                        : () => _confirmAcknowledgement(
-                            sheetContext,
-                            item.activeAlert!,
-                          ),
-                    icon:
-                        widget.viewModel.isAcknowledging(
-                          item.activeAlert!.alertId,
-                        )
-                        ? const SizedBox.square(
-                            dimension: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.task_alt),
-                    label: Text(
-                      widget.viewModel.isAcknowledging(
-                            item.activeAlert!.alertId,
-                          )
-                          ? 'Confirming with backend…'
-                          : 'Acknowledge alert',
+            KeyValueRow(label: 'GPS', value: _gpsDescription(item)),
+            const SizedBox(height: AppSpacing.md),
+            AppButton(
+              label: 'Open live sensor data',
+              icon: Icons.sensors_rounded,
+              variant: AppButtonVariant.secondary,
+              onPressed: () {
+                Navigator.pop(sheetContext);
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => SensorDetailScreen(
+                      helmetId: item.helmet.helmetId,
+                      workerName: item.workerName,
+                      viewModel: widget.viewModel,
                     ),
                   ),
+                );
+              },
+            ),
+            if (item.activeAlert != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              AppButton(
+                label: 'View active alert',
+                icon: Icons.warning_amber_rounded,
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => AlertDetailScreen(
+                        profile: widget.viewModel.profile,
+                        alertId: item.activeAlert!.alertId,
+                        dependencies: widget.viewModel.dependencies,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              if (_canAcknowledge(item.activeAlert!)) ...[
+                const SizedBox(height: AppSpacing.sm),
+                AppButton(
+                  label:
+                      widget.viewModel.isAcknowledging(
+                        item.activeAlert!.alertId,
+                      )
+                      ? 'Confirming with backend…'
+                      : 'Acknowledge alert',
+                  icon: Icons.task_alt,
+                  variant: AppButtonVariant.secondary,
+                  loading: widget.viewModel.isAcknowledging(
+                    item.activeAlert!.alertId,
+                  ),
+                  onPressed: () => _confirmAcknowledgement(
+                    sheetContext,
+                    item.activeAlert!,
+                  ),
                 ),
+              ],
             ] else
-              const Padding(
-                padding: EdgeInsets.only(top: 10),
-                child: Text('No active alert actions for this helmet.'),
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.sm),
+                child: Text(
+                  'No active alert actions for this helmet.',
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
               ),
           ],
         ),
@@ -439,38 +443,46 @@ class _DevelopmentMapFallback extends StatelessWidget {
     return Container(
       height: 250,
       width: double.infinity,
-      decoration: const BoxDecoration(color: Color(0xFF0C2346)),
+      decoration: const BoxDecoration(
+        color: AppColors.inkRaised,
+        border: Border(
+          top: BorderSide(color: AppColors.inkBorder),
+          bottom: BorderSide(color: AppColors.inkBorder),
+        ),
+      ),
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 5),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.sm,
+              AppSpacing.md,
+              AppSpacing.xs,
+            ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Icon(
                   Icons.map_outlined,
-                  color: Color(0xFF77A6D7),
-                  size: 20,
+                  color: AppColors.onInkMuted,
+                  size: AppSizes.iconMd,
                 ),
-                const SizedBox(width: 9),
+                const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Interactive map unavailable in development mode.',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
+                        style: AppTypography.label.copyWith(
+                          color: AppColors.onInk,
                         ),
                       ),
                       if (result.message != null)
                         Text(
                           result.message!,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.62),
-                            fontSize: 9,
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.onInkMuted,
                           ),
                         ),
                     ],
@@ -481,10 +493,12 @@ class _DevelopmentMapFallback extends StatelessWidget {
           ),
           Expanded(
             child: positioned.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
                       'No valid coordinates available for preview.',
-                      style: TextStyle(color: Colors.white60, fontSize: 10),
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.onInkMuted,
+                      ),
                     ),
                   )
                 : Semantics(
@@ -501,16 +515,19 @@ class _DevelopmentMapFallback extends StatelessWidget {
                   ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 4, 10, 9),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              0,
+              AppSpacing.sm,
+              0,
+            ),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Schematic preview — not a real map.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.onInkMuted,
                     ),
                   ),
                 ),
@@ -525,14 +542,10 @@ class _DevelopmentMapFallback extends StatelessWidget {
                             ),
                     ),
                     style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF77A6D7),
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      foregroundColor: AppColors.onInk,
                     ),
-                    icon: const Icon(Icons.info_outline, size: 13),
-                    label: const Text(
-                      'Selected details',
-                      style: TextStyle(fontSize: 9),
-                    ),
+                    icon: const Icon(Icons.info_outline, size: AppSizes.iconSm),
+                    label: const Text('Selected details'),
                   ),
               ],
             ),
@@ -584,15 +597,18 @@ class _SchematicLocationPainter extends CustomPainter {
       );
     }
 
+    // Radar-style backdrop: range rings and a crosshair (not a real map).
     final gridPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.08)
-      ..strokeWidth = 1;
-    for (var index = 1; index < 4; index++) {
-      final x = size.width * index / 4;
-      final y = size.height * index / 4;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+      ..color = AppColors.inkBorder
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+    final middle = size.center(Offset.zero);
+    final maxRadius = size.shortestSide / 2;
+    for (var ring = 1; ring <= 3; ring++) {
+      canvas.drawCircle(middle, maxRadius * ring / 3, gridPaint);
     }
+    canvas.drawLine(Offset(0, middle.dy), Offset(size.width, middle.dy), gridPaint);
+    canvas.drawLine(Offset(middle.dx, 0), Offset(middle.dx, size.height), gridPaint);
 
     for (final item in items) {
       final center = project(item.location!);
@@ -602,7 +618,7 @@ class _SchematicLocationPainter extends CustomPainter {
           center,
           13,
           Paint()
-            ..color = Colors.white
+            ..color = AppColors.onPrimary
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2.5,
         );
@@ -610,15 +626,15 @@ class _SchematicLocationPainter extends CustomPainter {
       canvas.drawCircle(
         center,
         8,
-        Paint()..color = _stateColor(item.markerState),
+        Paint()..color = _stateStatus(item.markerState).palette.onInk,
       );
       final label = TextPainter(
         text: TextSpan(
           text:
               '${helmetMapStateSymbol(item.markerState)} ${item.helmet.helmetId}',
           style: const TextStyle(
-            color: Colors.white,
-            fontSize: 9,
+            color: AppColors.onPrimary,
+            fontSize: 14,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -634,7 +650,7 @@ class _SchematicLocationPainter extends CustomPainter {
         center,
         17,
         Paint()
-          ..color = const Color(0xFFEB5757)
+          ..color = SafetyStatus.critical.palette.onInk
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3,
       );
@@ -795,7 +811,7 @@ Future<BitmapDescriptor> _createMarkerIcon(HelmetMapState state) async {
   canvas.drawRRect(
     rect,
     Paint()
-      ..color = Colors.white
+      ..color = AppColors.onPrimary
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4,
   );
@@ -803,7 +819,7 @@ Future<BitmapDescriptor> _createMarkerIcon(HelmetMapState state) async {
     text: TextSpan(
       text: '${helmetMapStateSymbol(state)}  ${helmetMapStateLabel(state)}',
       style: const TextStyle(
-        color: Colors.white,
+        color: AppColors.onPrimary,
         fontSize: 22,
         fontWeight: FontWeight.w900,
       ),
@@ -843,107 +859,80 @@ IconData _stateIcon(HelmetMapState state) => switch (state) {
   HelmetMapState.gpsLost => Icons.location_off_outlined,
 };
 
-Color _stateColor(HelmetMapState state) => switch (state) {
-  HelmetMapState.safe => const Color(0xFF219653),
-  HelmetMapState.warning => const Color(0xFFF2994A),
-  HelmetMapState.critical => const Color(0xFFEB5757),
-  HelmetMapState.stale => const Color(0xFF6B7280),
-  HelmetMapState.gpsAcquiring => const Color(0xFF2F80ED),
-  HelmetMapState.gpsLost => const Color(0xFF4B5563),
+SafetyStatus _stateStatus(HelmetMapState state) => switch (state) {
+  HelmetMapState.safe => SafetyStatus.normal,
+  HelmetMapState.warning => SafetyStatus.warning,
+  HelmetMapState.critical => SafetyStatus.critical,
+  HelmetMapState.stale => SafetyStatus.stale,
+  HelmetMapState.gpsAcquiring => SafetyStatus.pending,
+  HelmetMapState.gpsLost => SafetyStatus.offline,
 };
+
+/// Marker colour on the (light) Google map.
+Color _stateColor(HelmetMapState state) => _stateStatus(state).palette.strong;
 
 class _StatePill extends StatelessWidget {
   const _StatePill({required this.state});
+
   final HelmetMapState state;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-    decoration: BoxDecoration(
-      color: _stateColor(state).withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(_stateIcon(state), size: 13, color: _stateColor(state)),
-        const SizedBox(width: 4),
-        Text(
-          helmetMapStateLabel(state),
-          style: TextStyle(
-            color: _stateColor(state),
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) =>
+      StatusChip(status: _stateStatus(state), label: helmetMapStateLabel(state));
 }
 
 class _LocationTile extends StatelessWidget {
   const _LocationTile({required this.item, required this.onTap});
+
   final HelmetMapItem item;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(14),
-    child: Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-      ),
+  Widget build(BuildContext context) {
+    final status = _stateStatus(item.markerState);
+    return AppCard(
+      onTap: onTap,
+      status: status.needsAttention ? status : null,
       child: Row(
         children: [
-          CircleAvatar(
-            backgroundColor: const Color(0xFF0C2346),
-            radius: 18,
-            child: Text(
-              item.workerName.isEmpty ? '?' : item.workerName[0],
-              style: const TextStyle(color: Colors.white, fontSize: 12),
-            ),
+          InitialsAvatar(
+            name: item.workerName.isEmpty ? '?' : item.workerName,
+            status: status,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   '${item.workerName} • ${item.helmet.helmetId}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13,
+                  style: AppTypography.bodyStrong.copyWith(
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 Text(
                   item.location == null
                       ? 'Coordinates unavailable • ${item.helmet.zone ?? 'Zone unavailable'}'
                       : '${formatCoordinates(item.location)} • ${item.helmet.zone ?? 'Zone unavailable'}',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.black.withValues(alpha: 0.5),
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textSecondary,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
+                const SizedBox(height: AppSpacing.xs),
                 Row(
                   children: [
                     Icon(
                       _stateIcon(item.markerState),
-                      size: 12,
-                      color: _stateColor(item.markerState),
+                      size: AppSizes.iconSm,
+                      color: status.palette.strong,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: AppSpacing.xs),
                     Expanded(
                       child: Text(
                         '${helmetMapStateLabel(item.markerState)} • ${_gpsDescription(item)}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: _stateColor(item.markerState),
-                          fontWeight: FontWeight.bold,
+                        style: AppTypography.label.copyWith(
+                          color: status.palette.text,
                         ),
                       ),
                     ),
@@ -952,42 +941,49 @@ class _LocationTile extends StatelessWidget {
               ],
             ),
           ),
-          Icon(Icons.chevron_right, color: _stateColor(item.markerState)),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
         ],
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _UnpositionedMarker extends StatelessWidget {
   const _UnpositionedMarker({required this.item});
+
   final HelmetMapItem item;
 
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(right: 6),
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-    decoration: BoxDecoration(
-      color: _stateColor(item.markerState),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Colors.white, width: 1.5),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(_stateIcon(item.markerState), size: 12, color: Colors.white),
-        const SizedBox(width: 4),
-        Text(
-          '${item.helmet.helmetId} • ${helmetMapStateLabel(item.markerState)}',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 9,
-            fontWeight: FontWeight.w800,
+  Widget build(BuildContext context) {
+    final status = _stateStatus(item.markerState);
+    return Container(
+      margin: const EdgeInsets.only(right: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.ink,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: status.palette.onInk),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _stateIcon(item.markerState),
+            size: AppSizes.iconSm,
+            color: status.palette.onInk,
           ),
-        ),
-      ],
-    ),
-  );
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            '${item.helmet.helmetId} • ${helmetMapStateLabel(item.markerState)}',
+            style: AppTypography.label.copyWith(color: AppColors.onInk),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _MapPlaceholder extends StatelessWidget {
@@ -996,6 +992,7 @@ class _MapPlaceholder extends StatelessWidget {
     required this.text,
     this.unpositioned = const [],
   });
+
   final IconData icon;
   final String text;
   final List<HelmetMapItem> unpositioned;
@@ -1004,32 +1001,38 @@ class _MapPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     height: 220,
     width: double.infinity,
-    color: const Color(0xFF0C2346),
+    padding: const EdgeInsets.all(AppSpacing.md),
+    decoration: const BoxDecoration(
+      color: AppColors.inkRaised,
+      border: Border(
+        top: BorderSide(color: AppColors.inkBorder),
+        bottom: BorderSide(color: AppColors.inkBorder),
+      ),
+    ),
     alignment: Alignment.center,
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: Colors.white70, size: 28),
-        const SizedBox(height: 8),
-        Text(
-          text,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontWeight: FontWeight.bold,
+    child: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: AppColors.onInkMuted, size: 32),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: AppTypography.label.copyWith(color: AppColors.onInk),
           ),
-        ),
-        if (unpositioned.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 6,
-            runSpacing: 6,
-            children: unpositioned
-                .map((item) => _UnpositionedMarker(item: item))
-                .toList(),
-          ),
+          if (unpositioned.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            Wrap(
+              alignment: WrapAlignment.center,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final item in unpositioned) _UnpositionedMarker(item: item),
+              ],
+            ),
+          ],
         ],
-      ],
+      ),
     ),
   );
 }
@@ -1040,41 +1043,36 @@ class _MapMessage extends StatelessWidget {
     required this.title,
     required this.message,
   });
+
   final IconData icon;
   final String title;
   final String message;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: Icon(icon, color: const Color(0xFF0C2346)),
-    title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-    subtitle: Text(message),
-  );
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 5),
+  Widget build(BuildContext context) => AppCard(
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 100,
-          child: Text(
-            label,
-            style: TextStyle(color: Colors.black.withValues(alpha: 0.55)),
-          ),
-        ),
+        IconTile(icon: icon),
+        const SizedBox(width: AppSpacing.md),
         Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w700),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: AppTypography.bodyStrong.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                message,
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1084,33 +1082,23 @@ class _DetailRow extends StatelessWidget {
 
 class _MapSourceBadge extends StatelessWidget {
   const _MapSourceBadge({required this.label});
+
   final String label;
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    decoration: BoxDecoration(
-      color: Colors.black.withValues(alpha: 0.6),
-      borderRadius: BorderRadius.circular(4),
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.sm,
+      vertical: AppSpacing.xs,
     ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(
-          Icons.cloud_done_outlined,
-          size: 11,
-          color: Colors.lightBlueAccent,
-        ),
-        const SizedBox(width: 5),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 9,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
+    decoration: BoxDecoration(
+      color: AppColors.ink,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      border: Border.all(color: AppColors.inkBorder),
+    ),
+    child: Text(
+      label,
+      style: AppTypography.label.copyWith(color: AppColors.onInk),
     ),
   );
 }

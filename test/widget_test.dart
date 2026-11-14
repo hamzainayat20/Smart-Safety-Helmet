@@ -30,11 +30,19 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Worker Status'), findsOneWidget);
     expect(find.textContaining('Demo data'), findsWidgets);
-    expect(find.text('Zain Ahmed'), findsOneWidget);
-    expect(find.text('Critical'), findsOneWidget);
+    expect(find.text('Act now'), findsOneWidget);
     expect(find.text('12/14'), findsNothing);
+
+    // The redesigned dashboard keeps worker status below the urgent summary.
+    // Scroll the lazy list before asserting content that starts off-screen.
+    await tester.scrollUntilVisible(
+      find.text('Worker Status'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Worker Status'), findsOneWidget);
+    expect(find.text('Zain Ahmed'), findsOneWidget);
   });
 
   testWidgets('worker dashboard reads assigned helmet from repositories', (
