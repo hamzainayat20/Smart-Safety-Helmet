@@ -9,6 +9,10 @@ Map<String, dynamic> normalizeSensorReadingAtIngestion(
   Map<String, dynamic> source,
 ) {
   final result = Map<String, dynamic>.from(source);
+  // Telemetry schema 2.0 names MQ-7 explicitly (mq7Raw / mq7WarmUp) and has no
+  // calibrated-gas fields. Its names are canonical and must not be folded into
+  // the legacy manual-sketch gas fields.
+  final isSchemaV2 = result['schemaVersion'] == '2.0';
 
   void alias(String legacy, String canonical) {
     if (!result.containsKey(canonical) && result.containsKey(legacy)) {
@@ -26,7 +30,7 @@ Map<String, dynamic> normalizeSensorReadingAtIngestion(
   alias('gyroX', 'gyroXDegreesPerSecond');
   alias('gyroY', 'gyroYDegreesPerSecond');
   alias('gyroZ', 'gyroZDegreesPerSecond');
-  alias('mq7Raw', 'gasRaw');
+  if (!isSchemaV2) alias('mq7Raw', 'gasRaw');
   alias('mq7AdcVoltage', 'gasAdcVoltage');
   alias('mq7Voltage', 'gasSensorVoltage');
 
@@ -67,6 +71,15 @@ Map<String, dynamic> normalizeSensorReadingAtIngestion(
     faults
       ..add('mq7Uncalibrated')
       ..add('mq7HeaterStateUnknown');
+  }
+
+  if (isSchemaV2) {
+    // Schema 2.0 never carries calibrated gas ppm, so the legacy calibrated-gas
+    // channel is reported as not ready, exactly as it was for schema 2.0
+    // records before this adapter preserved mq7Raw separately. The device's
+    // own mq7WarmUp flag is kept unchanged on the reading for display.
+    result.remove('gasPpm');
+    result['gasWarmUp'] = true;
   }
 
   if (!result.containsKey('location')) faults.add('gpsUnavailable');

@@ -19,25 +19,44 @@ struct TelemetryMetadata {
 struct TelemetryRecord {
   TelemetryMetadata metadata;
   SensorSnapshot snapshot;
-  std::string json;
+  std::string json;  // local diagnostic JSON, never uploaded
+};
+
+// Instantaneous-axis limits enforced by the *deployed* ingestion contract
+// (functions/src/telemetry_contract.js). The IMU measures wider ranges for
+// the fall window; instantaneous axes outside these limits cannot be sent.
+inline constexpr double kIngestionAccelLimitG = 2.0;
+inline constexpr double kIngestionGyroLimitDps = 250.0;
+
+enum class IngestionBlock {
+  kNone,
+  kTimeUnsynchronized,
+  kMotionOutsideContractRange,
+};
+
+const char* ingestionBlockName(IngestionBlock block);
+
+struct IngestionBuild {
+  std::optional<std::string> json;
+  IngestionBlock block{IngestionBlock::kNone};
 };
 
 class TelemetryBuilder {
  public:
+  // Local Serial diagnostics: explicit nulls, local-only status fields.
   TelemetryRecord build(const TelemetryMetadata& metadata,
                         const SensorSnapshot& snapshot) const;
 
-  // Returns the strict ingestion payload. Unsynchronized records are not
-  // eligible for upload and therefore return nullopt.
-  std::optional<std::string> buildIngestionJson(
-      const TelemetryMetadata& metadata,
-      const SensorSnapshot& snapshot) const;
+  // Strict schema 2.0 ingestion body. Deterministic field order, only real
+  // measurements, every absence paired with its fault, no backend-owned or
+  // schema 1.0 fields.
+  IngestionBuild buildIngestion(const TelemetryMetadata& metadata,
+                                const SensorSnapshot& snapshot) const;
 
- private:
-  static std::string serialize(const TelemetryMetadata& metadata,
-                               const SensorSnapshot& snapshot);
-  static std::string serializeIngestion(const TelemetryMetadata& metadata,
-                                        const SensorSnapshot& snapshot);
+  static bool motionWithinIngestionContract(const MotionSample& motion);
+  // Drops values the contract would reject and windows that are incomplete.
+  static SensorSnapshot sanitizeForIngestion(const SensorSnapshot& snapshot,
+                                             std::uint64_t deviceTimestampMs);
 };
 
 }  // namespace smart_safety

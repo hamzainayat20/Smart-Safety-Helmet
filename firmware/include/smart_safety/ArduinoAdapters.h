@@ -28,6 +28,27 @@ class ArduinoDht22Reader final : public Dht22Reader {
   DHT& dht_;
 };
 
+// ADC1 input (GPIO32-39). 11 dB attenuation gives the widest input span the
+// ESP32 ADC supports (about 0-3.1 V usable); the pin itself must never see
+// more than 3.3 V, which the external divider has to guarantee.
+class ArduinoAnalogInput final : public AnalogInput {
+ public:
+  explicit ArduinoAnalogInput(int pin) : pin_(pin) {}
+
+  void begin() {
+    analogReadResolution(12);
+    analogSetPinAttenuation(pin_, ADC_11db);
+  }
+
+  bool read(int& raw) override {
+    raw = analogRead(pin_);
+    return raw >= 0 && raw <= 4095;
+  }
+
+ private:
+  int pin_;
+};
+
 class ArduinoTwoWireBus final : public I2cBus {
  public:
   explicit ArduinoTwoWireBus(TwoWire& wire) : wire_(wire) {}

@@ -1,5 +1,15 @@
 # Staging telemetry ingestion
 
+> **Superseded deployment notes.** The deployed staging backend is now AWS
+> (API Gateway + ingestion Lambda + private inference Lambda, stack
+> `smart-safety-staging`). Device credentials live in the encrypted SSM
+> parameter `/smart-safety/staging/configuration`, not in Firebase or Google
+> Secret Manager, and the Firebase `ingestTelemetry` function is not the
+> device endpoint. The signing contract, validation rules and RTDB projection
+> described below are unchanged and still implemented by the shared code in
+> `functions/src/`. For current device provisioning, build and validation use
+> `firmware/README.md` and `aws/README.md`.
+
 This document contains no credentials. The implementation is configuration-
 ready but is not deployed or provisioned by the repository changes alone.
 
@@ -55,42 +65,34 @@ the event's stable `serverReceivedAt` on the first attempt and every repair.
 Stored duplicates still verify/repair missing history and current projections,
 and the dedupe status changes to `stored` only after both reconciliations finish.
 
-## Secret Manager format
+## Device credential format
 
-`HELMET_DEVICE_SECRETS` is a Firebase Functions secret containing JSON. Use a
-different random 32-byte-or-longer secret for every physical helmet:
+The deployed AWS ingestion Lambda reads the helmet credential registry from
+the `helmetDeviceSecrets` object inside the encrypted SSM SecureString
+`/smart-safety/staging/configuration` (see `aws/configuration-secret.example.json`).
+Use a different random 32-byte-or-longer secret for every physical helmet:
 
 ```json
 {
   "helmet001": {
     "keyVersion": "v1",
-    "secretBase64": "<ONE_TIME_BASE64_DEVICE_SECRET>",
+    "secretBase64": "<NEVER_COMMITTED>",
     "revoked": false
   }
 }
 ```
 
-HMAC verification requires both sides to possess the plaintext HMAC key. It is
-not stored merely as a one-way hash. After the controlled one-time transfer, the
-plaintext key exists only in ESP32 protected storage and Google Secret Manager.
-Secret Manager protects the backend copy at rest and controls runtime access.
-The key is never committed or logged. ESP32 flash/NVS encryption and secure boot
-remain mandatory before the device copy is production-protected.
+HMAC verification requires both sides to hold the plaintext key; it is not a
+one-way hash. The key exists only in that SSM parameter and in the ESP32's NVS.
+It is never committed, logged, printed, or placed in a command argument,
+`.env` file or build flag. The Lambda decrypts the parameter once per cold
+start and caches it per warm execution environment, so a rotated key is only
+honoured after those environments reload.
 
-Never add the real value to a command argument, `.env` file, firmware build
-flag, repository file, issue, or log. Use the Firebase CLI's interactive secret
-input:
-
-```text
-firebase functions:secrets:set HELMET_DEVICE_SECRETS
-```
-
-Deployment is a separate approved operation performed only after the secret is
-present:
-
-```text
-firebase deploy --only functions:ingestTelemetry
-```
+The ESP32 receives the **existing** SSM credential through
+`aws/scripts/provision-helmet-device.ps1 -Stage Credential`, which streams it
+over USB into the provisioner firmware without displaying it. No rotation or
+redeployment is involved.
 
 ## ESP32 targets
 
@@ -100,40 +102,23 @@ The default target remains network-disabled:
 pio run -e esp32dev
 ```
 
-The staging provisioner has two deliberately separate stages. Stage 1 generates
-and stores identity/secret only. If a secret already exists, stage 1 refuses to
-replace it. Stage 2 requires that identity, then stores or updates endpoint,
-Wi-Fi, and TLS CA without reading, printing, rotating, or replacing the secret.
+The provisioner firmware no longer generates secrets. Its stages are:
+1 = import the existing `helmet001` credential from AWS SSM, 2 = store
+endpoint / TLS root CA / Wi-Fi, 3 = show status (no secrets), 9 = erase. Stage
+1 refuses to overwrite an existing credential. The controlled order is:
 
-```text
-pio run -e esp32dev_provisioner --target upload --upload-port COMx
-pio device monitor --baud 115200 --port COMx
-```
+1. `pio run -e esp32dev_provisioner --target upload --upload-port COM4`
+2. `aws/scripts/provision-helmet-device.ps1 -Stage Credential -Port COM4`
+3. `aws/scripts/provision-helmet-device.ps1 -Stage Network -Port COM4`
+   (verifies the live endpoint chain against Amazon Trust Services roots)
+4. `pio run -e esp32dev_staging --target upload --upload-port COM4`
+5. `pio device monitor --baud 115200 --port COM4` and wait for
+   `UPLOAD accepted ... assessmentStatus=completed`.
 
-The exact controlled order is:
-
-1. Compile and upload `esp32dev_provisioner` after approval.
-2. Select stage 1 to store `helmet001`, key version, and a newly generated
-   device secret. Transfer the one-time displayed test secret securely.
-3. Enter that value interactively into `HELMET_DEVICE_SECRETS` in Google Secret
-   Manager. Preserve other helmet entries.
-4. Deploy `ingestTelemetry` after separate approval.
-5. Obtain the deployed HTTPS endpoint URL and verified TLS root CA.
-6. Run the same provisioner again and select stage 2. Configure endpoint, CA,
-   and Wi-Fi; the existing device secret is unchanged.
-7. Upload the `esp32dev_staging` firmware after separate approval.
-8. Make the trusted metadata transition to `provisioningStatus: provisioned`
-   only as an approved administrative operation, then perform staging tests.
-
-After those steps, upload the opt-in staging firmware with:
-
-```text
-pio run -e esp32dev_staging --target upload --upload-port COMx
-pio device monitor --baud 115200 --port COMx
-```
-
-The TLS root CA entered during provisioning must be obtained from the deployed
-endpoint's verified certificate chain. Do not disable certificate validation.
+The endpoint is the deployed API Gateway URL
+(`.../staging/v1/telemetry`), but the device signs the canonical path
+`/ingest/v1/helmets/{helmetId}/telemetry`. Do not disable certificate
+validation. Full details: `firmware/README.md`.
 
 ## Bounded ingestion-state cleanup
 
@@ -150,16 +135,17 @@ in this local-only batch. Client rules remain default-deny for both branches.
 
 ## Production limitations
 
-- Provisioning, Secret Manager changes, metadata activation, and deployment
-  have not been executed by this change.
+- Physical device provisioning and the first signed physical upload must be
+  performed and observed on the real hardware.
 - NVS/flash encryption and ESP32 secure boot must be enabled and physically
   validated before treating stored credentials as production-protected.
-- Credential rotation requires provisioning the new version on the device and
-  updating Secret Manager during a controlled overlap window.
+- Credential rotation requires writing a new key version to the SSM
+  parameter, importing it into the device, and allowing every warm ingestion
+  Lambda environment to reload during a controlled overlap window.
 - Revocation is available through the backend secret registry and inactive or
   unprovisioned helmet metadata, but no administrative provisioning UI is added.
 - The buffer is RAM-backed and survives network loss but not power loss.
-- MQ-7 acquisition/ppm, GPS, battery, alert generation, and fall-alert upload
-  remain disabled.
+- MQ-7 is raw ADC only (no ppm, no gas classification); DHT22 and MQ-135 are
+  absent; GPS, battery and alert outputs remain unavailable.
 - Physical ESP32, Wi-Fi, TLS, Firebase deployment, and end-to-end behavior must
   not be considered validated until run on the actual staging hardware.

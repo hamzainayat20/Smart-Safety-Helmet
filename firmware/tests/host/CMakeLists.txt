@@ -9,7 +9,10 @@ add_executable(
   firmware_host_tests
   test_firmware.cpp
   ../../src/DHT22Sensor.cpp
-  ../../src/MPU6500Sensor.cpp
+  ../../src/FallFeatures.cpp
+  ../../src/MotionPipeline.cpp
+  ../../src/MpuSensor.cpp
+  ../../src/MQ7AnalogSensor.cpp
   ../../src/FallDetectionEngine.cpp
   ../../src/EventIdGenerator.cpp
   ../../src/TelemetryBuilder.cpp

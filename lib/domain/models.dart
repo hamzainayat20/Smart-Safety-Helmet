@@ -86,6 +86,10 @@ enum SensorFault {
   mq7ReadFailed,
   mq7Uncalibrated,
   mq7HeaterStateUnknown,
+  mq135ReadFailed,
+  mq135Uncalibrated,
+  mq135HeaterStateUnknown,
+  fallWindowUnavailable,
   gpsUnavailable,
   batteryUnavailable,
 }
@@ -577,6 +581,97 @@ final class GPSLocation {
   };
 }
 
+/// The nine fall-model window features computed on the helmet (telemetry
+/// schema 2.0), with the window that produced them. Feature names and order
+/// follow the fall model metadata; values are exactly as the device sent them.
+final class FallWindowFeatures {
+  FallWindowFeatures({
+    required this.accMean,
+    required this.accStd,
+    required this.accMin,
+    required this.accMax,
+    required this.gyroMean,
+    required this.gyroStd,
+    required this.gyroMax,
+    required this.jerkMean,
+    required this.jerkMax,
+    required this.samplingRateHz,
+    required this.windowSamples,
+    required DateTime windowEndTimestamp,
+  }) : windowEndTimestamp = windowEndTimestamp.toUtc();
+
+  /// Model feature keys in model feature order.
+  static const featureKeys = <String>[
+    'acc_mean',
+    'acc_std',
+    'acc_min',
+    'acc_max',
+    'gyro_mean',
+    'gyro_std',
+    'gyro_max',
+    'jerk_mean',
+    'jerk_max',
+  ];
+
+  final double accMean;
+  final double accStd;
+  final double accMin;
+  final double accMax;
+  final double gyroMean;
+  final double gyroStd;
+  final double gyroMax;
+  final double jerkMean;
+  final double jerkMax;
+  final int samplingRateHz;
+  final int windowSamples;
+  final DateTime windowEndTimestamp;
+
+  /// Feature values keyed by model feature name, in model order.
+  Map<String, double> get features => {
+    'acc_mean': accMean,
+    'acc_std': accStd,
+    'acc_min': accMin,
+    'acc_max': accMax,
+    'gyro_mean': gyroMean,
+    'gyro_std': gyroStd,
+    'gyro_max': gyroMax,
+    'jerk_mean': jerkMean,
+    'jerk_max': jerkMax,
+  };
+
+  /// Reads the complete window from a reading record. Returns null when the
+  /// window is absent, incomplete or malformed: a partial window is never
+  /// shown, and a bad window must not make the rest of the reading unusable.
+  static FallWindowFeatures? tryFromReadingJson(Map<String, dynamic> json) {
+    final raw = json['fallFeatures'];
+    if (raw is! Map) return null;
+    try {
+      final values = Map<String, dynamic>.from(raw);
+      double feature(String key) => _requiredNumber(values, key, min: 0);
+      final samplingRateHz = _optionalInt(json, 'samplingRateHz', min: 1);
+      final windowSamples = _optionalInt(json, 'windowSamples', min: 1);
+      if (samplingRateHz == null || windowSamples == null) return null;
+      final window = FallWindowFeatures(
+        accMean: feature('acc_mean'),
+        accStd: feature('acc_std'),
+        accMin: feature('acc_min'),
+        accMax: feature('acc_max'),
+        gyroMean: feature('gyro_mean'),
+        gyroStd: feature('gyro_std'),
+        gyroMax: feature('gyro_max'),
+        jerkMean: feature('jerk_mean'),
+        jerkMax: feature('jerk_max'),
+        samplingRateHz: samplingRateHz,
+        windowSamples: windowSamples,
+        windowEndTimestamp: _requiredTimestamp(json, 'windowEndTimestamp'),
+      );
+      return window.accMin <= window.accMax ? window : null;
+    } on ModelValidationException {
+      return null;
+    }
+  }
+}
+
 final class SensorReading {
   SensorReading({
     this.schemaVersion = currentSchemaVersion,
@@ -599,6 +694,11 @@ final class SensorReading {
     this.gyroXDegreesPerSecond,
     this.gyroYDegreesPerSecond,
     this.gyroZDegreesPerSecond,
+    this.mq7Raw,
+    this.mq7WarmUp,
+    this.mq135Raw,
+    this.mq135WarmUp,
+    this.fallWindow,
     this.fallStatus = FallStatus.notEvaluated,
     Iterable<SensorFault> sensorFaults = const [],
     this.location,
@@ -628,6 +728,13 @@ final class SensorReading {
     }
     if (gasRaw != null && (gasRaw! < 0 || gasRaw! > 4095)) {
       throw ModelValidationException('gasRaw is outside the 12-bit ADC range');
+    }
+    for (final raw in [mq7Raw, mq135Raw]) {
+      if (raw != null && (raw < 0 || raw > 4095)) {
+        throw ModelValidationException(
+          'Raw gas ADC values must be within the 12-bit range',
+        );
+      }
     }
     _validateOptionalNonNegative(gasAdcVoltage, 'gasAdcVoltage');
     _validateOptionalNonNegative(gasSensorVoltage, 'gasSensorVoltage');
@@ -711,6 +818,19 @@ final class SensorReading {
   final double? gyroXDegreesPerSecond;
   final double? gyroYDegreesPerSecond;
   final double? gyroZDegreesPerSecond;
+
+  /// Schema 2.0 raw 12-bit MQ-7 ADC count. Not ppm and not calibrated.
+  final int? mq7Raw;
+
+  /// Schema 2.0: true while the device does not consider MQ-7 ready.
+  final bool? mq7WarmUp;
+
+  /// Schema 2.0 raw 12-bit MQ-135 ADC count (absent on current hardware).
+  final int? mq135Raw;
+  final bool? mq135WarmUp;
+
+  /// Schema 2.0 fall-model window computed on the device, when complete.
+  final FallWindowFeatures? fallWindow;
   final FallStatus fallStatus;
   final List<SensorFault> sensorFaults;
   final GPSLocation? location;
@@ -771,6 +891,11 @@ final class SensorReading {
       gyroXDegreesPerSecond: _optionalNumber(json, 'gyroXDegreesPerSecond'),
       gyroYDegreesPerSecond: _optionalNumber(json, 'gyroYDegreesPerSecond'),
       gyroZDegreesPerSecond: _optionalNumber(json, 'gyroZDegreesPerSecond'),
+      mq7Raw: _optionalInt(json, 'mq7Raw', min: 0, max: 4095),
+      mq7WarmUp: _optionalBool(json, 'mq7WarmUp'),
+      mq135Raw: _optionalInt(json, 'mq135Raw', min: 0, max: 4095),
+      mq135WarmUp: _optionalBool(json, 'mq135WarmUp'),
+      fallWindow: FallWindowFeatures.tryFromReadingJson(json),
       fallStatus: json['fallStatus'] == null
           ? FallStatus.notEvaluated
           : _enumValue(
@@ -794,6 +919,10 @@ final class SensorReading {
           'mq7_read_failed': SensorFault.mq7ReadFailed,
           'mq7_uncalibrated': SensorFault.mq7Uncalibrated,
           'mq7_heater_state_unknown': SensorFault.mq7HeaterStateUnknown,
+          'mq135_read_failed': SensorFault.mq135ReadFailed,
+          'mq135_uncalibrated': SensorFault.mq135Uncalibrated,
+          'mq135_heater_state_unknown': SensorFault.mq135HeaterStateUnknown,
+          'fall_window_unavailable': SensorFault.fallWindowUnavailable,
           'gps_unavailable': SensorFault.gpsUnavailable,
           'battery_unavailable': SensorFault.batteryUnavailable,
         },
@@ -838,6 +967,17 @@ final class SensorReading {
       'gyroYDegreesPerSecond': gyroYDegreesPerSecond,
     if (gyroZDegreesPerSecond != null)
       'gyroZDegreesPerSecond': gyroZDegreesPerSecond,
+    if (mq7Raw != null) 'mq7Raw': mq7Raw,
+    if (mq7WarmUp != null) 'mq7WarmUp': mq7WarmUp,
+    if (mq135Raw != null) 'mq135Raw': mq135Raw,
+    if (mq135WarmUp != null) 'mq135WarmUp': mq135WarmUp,
+    if (fallWindow != null) ...{
+      'fallFeatures': fallWindow!.features,
+      'samplingRateHz': fallWindow!.samplingRateHz,
+      'windowSamples': fallWindow!.windowSamples,
+      'windowEndTimestamp':
+          fallWindow!.windowEndTimestamp.millisecondsSinceEpoch,
+    },
     'fallStatus': fallStatus.name,
     if (sensorFaults.isNotEmpty)
       'sensorFaults': sensorFaults.map((fault) => fault.name).toList(),

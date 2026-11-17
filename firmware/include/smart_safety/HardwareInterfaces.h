@@ -17,6 +17,13 @@ class Dht22Reader {
   virtual bool read(Dht22RawReading& reading) = 0;
 };
 
+// One analog input channel. read() returns the raw 12-bit conversion.
+class AnalogInput {
+ public:
+  virtual ~AnalogInput() = default;
+  virtual bool read(int& raw) = 0;
+};
+
 class I2cBus {
  public:
   virtual ~I2cBus() = default;

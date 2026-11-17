@@ -42,6 +42,17 @@ The helmet secret must be unique, random, at least 32 bytes, revocable, and
 restricted to its matching Helmet ID. The existing signing contract and header
 names remain defined in `functions/src/device_auth.js`.
 
+## Physical helmet provisioning
+
+The ESP32 must hold the same `helmet001` credential as this SSM parameter.
+`scripts/provision-helmet-device.ps1` imports the **existing** credential into
+the device's NVS over USB (`-Stage Credential`), then stores the endpoint, a
+verified Amazon Trust Services root CA bundle and Wi-Fi (`-Stage Network`).
+The secret is never printed or written to disk, and nothing is rotated, so the
+simulators and the Lambda's cached configuration are unaffected. It needs only
+the `ssm:GetParameter` (with decryption) access the simulator already uses.
+See `../firmware/README.md` for the full hardware procedure.
+
 ## Build and test (no deployment)
 
 From the repository root:

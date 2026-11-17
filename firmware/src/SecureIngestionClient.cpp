@@ -8,6 +8,7 @@
 #include <esp_system.h>
 #include <mbedtls/base64.h>
 #include <mbedtls/md.h>
+#include <sys/time.h>
 
 #include <algorithm>
 #include <array>
@@ -108,6 +109,7 @@ struct SecureIngestionClient::Impl {
   SemaphoreHandle_t mutex{xSemaphoreCreateMutex()};
   bool ready{false};
   std::uint32_t retryDelayMs{1000};
+  std::string assessmentStatus;
 
   ~Impl() {
     if (mutex != nullptr) vSemaphoreDelete(mutex);
@@ -189,15 +191,31 @@ struct SecureIngestionClient::Impl {
     const int status = http.POST(reinterpret_cast<std::uint8_t*>(
                                      const_cast<char*>(pending.json.data())),
                                  pending.json.size());
+    assessmentStatus.clear();
+    if (status == 200 || status == 202) {
+      // Only the backend-reported assessmentStatus is extracted for logging;
+      // the response body itself is never printed.
+      const std::string body = http.getString().c_str();
+      const std::string key = "\"assessmentStatus\":\"";
+      const auto start = body.find(key);
+      if (start != std::string::npos) {
+        const auto valueStart = start + key.size();
+        const auto end = body.find('"', valueStart);
+        if (end != std::string::npos && end - valueStart <= 32) {
+          assessmentStatus = body.substr(valueStart, end - valueStart);
+        }
+      }
+    }
     http.end();
     return status;
   }
 
+  // Milliseconds since the UTC epoch once SNTP has set the clock, else 0.
   std::uint64_t utcNowMs() const {
-    const auto seconds = std::time(nullptr);
-    return seconds >= 1700000000
-               ? static_cast<std::uint64_t>(seconds) * 1000ULL
-               : 0;
+    timeval now{};
+    if (gettimeofday(&now, nullptr) != 0 || now.tv_sec < 1700000000) return 0;
+    return static_cast<std::uint64_t>(now.tv_sec) * 1000ULL +
+           static_cast<std::uint64_t>(now.tv_usec / 1000);
   }
 
   void run() {
@@ -210,17 +228,32 @@ struct SecureIngestionClient::Impl {
       }
       const int status = send(pending);
       if (status == 200 || status == 202) {
+        Serial.printf("UPLOAD accepted event=%s status=%d assessmentStatus=%s\n",
+                      pending.eventId.c_str(), status,
+                      assessmentStatus.empty() ? "unknown"
+                                               : assessmentStatus.c_str());
         remove(pending.eventId);
         retryDelayMs = 1000;
       } else if (status == 400 || status == 409 || status == 413 ||
                  status == 415) {
         // A contract/auth/conflict rejection cannot be repaired by retrying the
         // identical event. Log only the status and event ID, never body/secret.
-        Serial.printf("Telemetry rejected: event=%s status=%d\n",
+        Serial.printf("UPLOAD rejected event=%s status=%d (contract or conflict; not retried)\n",
                       pending.eventId.c_str(), status);
         remove(pending.eventId);
         retryDelayMs = 1000;
       } else {
+        if (status == 401 || status == 403) {
+          Serial.printf("UPLOAD unauthorized event=%s status=%d (helmet "
+                        "credential or key version does not match AWS SSM; "
+                        "re-run provisioning). Retrying with back-off.\n",
+                        pending.eventId.c_str(), status);
+        } else {
+          Serial.printf("UPLOAD retry event=%s status=%d wifi=%s timeSync=%s\n",
+                        pending.eventId.c_str(), status,
+                        WiFi.status() == WL_CONNECTED ? "connected" : "down",
+                        utcNowMs() != 0 ? "yes" : "no");
+        }
         const auto jitter = esp_random() % 251U;
         vTaskDelay(pdMS_TO_TICKS(retryDelayMs + jitter));
         retryDelayMs = std::min<std::uint32_t>(retryDelayMs * 2U, 30000U);

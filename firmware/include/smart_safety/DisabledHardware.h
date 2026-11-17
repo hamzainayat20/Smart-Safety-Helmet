@@ -39,23 +39,6 @@ class DisabledNetworkManager final : public NetworkManager {
   bool available() const override { return false; }
 };
 
-class MQ7Sensor {
- public:
-  virtual ~MQ7Sensor() = default;
-  virtual bool available() const = 0;
-  virtual bool analogEnabled() const = 0;
-  virtual bool digitalEnabled() const = 0;
-  virtual bool heaterStateKnown() const = 0;
-};
-
-class DisabledMQ7Sensor final : public MQ7Sensor {
- public:
-  bool available() const override { return false; }
-  bool analogEnabled() const override { return false; }
-  bool digitalEnabled() const override { return false; }
-  bool heaterStateKnown() const override { return false; }
-};
-
 class GPSManager {
  public:
   virtual ~GPSManager() = default;

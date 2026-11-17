@@ -6,6 +6,7 @@ import 'presentation/design_system/design_system.dart';
 import 'presentation/formatters.dart';
 import 'presentation/assessment_history_panel.dart';
 import 'presentation/helmet_history.dart';
+import 'presentation/live_sensor_diagnostics.dart';
 import 'presentation/monitoring_state.dart';
 import 'presentation/safety_assessment_card.dart';
 import 'presentation/sensor_limits.dart';
@@ -304,7 +305,11 @@ class SensorDetailScreen extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.lg),
         const SectionHeader(title: 'Device diagnostics'),
-        _diagnosticsCard(reading),
+        LiveSensorDiagnostics(
+          reading: reading,
+          assessment: assessment,
+          isLive: !notLive,
+        ),
       ],
     );
   }
@@ -382,46 +387,6 @@ class SensorDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _diagnosticsCard(SensorReading reading) => AppCard(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        KeyValueRow(label: 'Firmware', value: reading.firmwareVersion),
-        KeyValueRow(label: 'Event ID', value: reading.eventId),
-        KeyValueRow(
-          label: 'Device clock',
-          value: formatUtcTimestamp(reading.deviceTimestamp),
-        ),
-        KeyValueRow(
-          label: 'Server received',
-          value: formatUtcTimestamp(reading.serverReceivedAt),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          'ACTIVE SENSOR FAULTS',
-          style: AppTypography.overline.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        if (reading.sensorFaults.isEmpty)
-          const StatusChip(status: SafetyStatus.normal, label: 'None reported')
-        else
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              for (final fault in reading.sensorFaults)
-                StatusChip(
-                  status: SafetyStatus.critical,
-                  label: _faultLabel(fault),
-                ),
-            ],
-          ),
-      ],
-    ),
-  );
-
   Widget _axis(double? value, String label) => _AxisValue(
     value: formatMeasurement(value, SensorUnit.standardGravity),
     label: label,
@@ -474,16 +439,6 @@ class SensorDetailScreen extends StatelessWidget {
     FallStatus.stillnessCandidate => 'Stillness check',
     FallStatus.confirmed => 'Fall confirmed',
     FallStatus.cooldown => 'Cooldown',
-  };
-
-  String _faultLabel(SensorFault fault) => switch (fault) {
-    SensorFault.mpuReadFailed => 'Motion sensor read failed',
-    SensorFault.dhtReadFailed => 'DHT22 read failed',
-    SensorFault.mq7ReadFailed => 'Gas sensor read failed',
-    SensorFault.mq7Uncalibrated => 'Gas sensor uncalibrated',
-    SensorFault.mq7HeaterStateUnknown => 'Gas heater state unknown',
-    SensorFault.gpsUnavailable => 'GPS unavailable',
-    SensorFault.batteryUnavailable => 'Battery unavailable',
   };
 
   String _stateLabel(MonitoringState state) => switch (state) {

@@ -288,6 +288,19 @@ final class RtdbHelmetRepository implements HelmetRepository {
       });
 }
 
+/// Parses a `helmets/{helmetId}/current` snapshot value exactly as the live
+/// `onValue` listener does. Returns null for an empty node.
+SensorReading? parseCurrentReadingRecord(Object? value, String helmetId) {
+  final data = _optionalRecord(
+    value,
+    RealtimeDatabasePaths.helmetCurrent(helmetId),
+  );
+  if (data == null) return null;
+  data['helmetId'] ??= helmetId;
+  data['schemaVersion'] ??= currentSchemaVersion;
+  return SensorReading.fromJson(normalizeSensorReadingAtIngestion(data));
+}
+
 final class RtdbReadingRepository implements ReadingRepository {
   RtdbReadingRepository({FirebaseDatabase? database, this.historyLimit = 100})
     : _database = database ?? FirebaseDatabase.instance;
@@ -295,16 +308,8 @@ final class RtdbReadingRepository implements ReadingRepository {
   final FirebaseDatabase _database;
   final int historyLimit;
 
-  SensorReading? _parseCurrent(DataSnapshot snapshot, String helmetId) {
-    final data = _optionalRecord(
-      snapshot.value,
-      RealtimeDatabasePaths.helmetCurrent(helmetId),
-    );
-    if (data == null) return null;
-    data['helmetId'] ??= helmetId;
-    data['schemaVersion'] ??= currentSchemaVersion;
-    return SensorReading.fromJson(normalizeSensorReadingAtIngestion(data));
-  }
+  SensorReading? _parseCurrent(DataSnapshot snapshot, String helmetId) =>
+      parseCurrentReadingRecord(snapshot.value, helmetId);
 
   @override
   Stream<bool> watchBackendConnection() => _guardStream(

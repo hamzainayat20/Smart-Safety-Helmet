@@ -329,3 +329,149 @@ test('rate limit rejects excess telemetry without storing it', async () => {
   assert.equal(response.statusCode, 429);
   assert.equal(response.body.error.code, 'RATE_LIMITED');
 });
+
+// ---------------------------------------------------------------------------
+// End-to-end projection of genuine physical-firmware schema 2.0 records.
+
+function physicalFirmwarePayload(overrides = {}) {
+  return {
+    schemaVersion: '2.0',
+    eventId: 'helmet001_1a2b3c4d_7',
+    helmetId: 'helmet001',
+    deviceTimestamp: initialNow,
+    firmwareVersion: '0.3.0-staging',
+    temperatureC: 29.4,
+    humidityPct: 61.2,
+    heatIndexC: 31.8,
+    accelXG: 0.04,
+    accelYG: -0.002,
+    accelZG: 1.094,
+    gyroXDegreesPerSecond: 0.012,
+    gyroYDegreesPerSecond: -0.02,
+    gyroZDegreesPerSecond: 0.005,
+    mq7Raw: 208,
+    mq7WarmUp: true,
+    mq135WarmUp: false,
+    fallFeatures: {
+      acc_mean: 1.0948,
+      acc_std: 0.0021,
+      acc_min: 1.0901,
+      acc_max: 1.0995,
+      gyro_mean: 0.21,
+      gyro_std: 0.08,
+      gyro_max: 0.45,
+      jerk_mean: 0.11,
+      jerk_max: 0.35,
+    },
+    samplingRateHz: 50,
+    windowSamples: 100,
+    windowEndTimestamp: initialNow - 200,
+    sensorFaults: [
+      'batteryUnavailable',
+      'gpsUnavailable',
+      'mq135HeaterStateUnknown',
+      'mq135ReadFailed',
+      'mq135Uncalibrated',
+      'mq7HeaterStateUnknown',
+      'mq7Uncalibrated',
+    ],
+    ...overrides,
+  };
+}
+
+const backendOwned = ['serverReceivedAt', 'connectivity', 'severity'];
+
+function withoutBackendOwned(record) {
+  return Object.fromEntries(
+    Object.entries(record).filter(([key]) => !backendOwned.includes(key)),
+  );
+}
+
+function assertNoNullOrUndefined(value, path = 'record') {
+  if (value === null || value === undefined) {
+    assert.fail(`${path} must be omitted rather than stored as ${value}`);
+  }
+  if (typeof value === 'object') {
+    for (const [key, child] of Object.entries(value)) {
+      assertNoNullOrUndefined(child, `${path}.${key}`);
+    }
+  }
+}
+
+test('every genuine schema 2.0 field survives into current and history unchanged', async () => {
+  const database = new FakeDatabase();
+  const payload = physicalFirmwarePayload();
+  const response = await invoke(database, payload);
+  assert.equal(response.statusCode, 202);
+
+  const current = getAt(database.data, 'helmets/helmet001/current');
+  const history = getAt(database.data, `readings/helmet001/${payload.eventId}`);
+  assert.deepEqual(history, current, 'history and current projections differ');
+
+  // Field-by-field so a regression names the exact field that was dropped.
+  for (const [field, expected] of Object.entries(payload)) {
+    if (field === 'fallFeatures') continue;
+    assert.deepEqual(current[field], expected, `current.${field} was not preserved`);
+  }
+  for (const [feature, expected] of Object.entries(payload.fallFeatures)) {
+    assert.equal(
+      current.fallFeatures[feature],
+      expected,
+      `current.fallFeatures.${feature} was not preserved`,
+    );
+  }
+  assert.deepEqual(withoutBackendOwned(current), payload, 'unexpected extra or missing fields');
+  assert.equal(current.serverReceivedAt, initialNow);
+  assert.equal(current.connectivity, 'online');
+  assert.equal(current.severity, 'unassessed');
+  assertNoNullOrUndefined(current);
+});
+
+test('partial physical record keeps unavailable measurements absent, never null or zero', async () => {
+  const database = new FakeDatabase();
+  const payload = physicalFirmwarePayload({ eventId: 'helmet001_partial_1' });
+  for (const field of [
+    'temperatureC', 'humidityPct', 'heatIndexC', 'mq7Raw', 'fallFeatures',
+    'samplingRateHz', 'windowSamples', 'windowEndTimestamp',
+  ]) delete payload[field];
+  payload.sensorFaults = [
+    ...payload.sensorFaults, 'dhtReadFailed', 'fallWindowUnavailable', 'mq7ReadFailed',
+  ].sort();
+
+  const response = await invoke(database, payload);
+  assert.equal(response.statusCode, 202);
+  const current = getAt(database.data, 'helmets/helmet001/current');
+  for (const field of [
+    'temperatureC', 'humidityPct', 'heatIndexC', 'mq7Raw', 'mq135Raw',
+    'fallFeatures', 'samplingRateHz', 'windowSamples', 'windowEndTimestamp',
+    'gasPpm', 'gasRaw', 'gasWarmUp', 'location', 'batteryPct',
+  ]) {
+    assert.equal(Object.hasOwn(current, field), false, `${field} was fabricated`);
+  }
+  assert.deepEqual(current.sensorFaults, payload.sensorFaults);
+  assert.equal(current.mq7WarmUp, true);
+  assert.equal(current.mq135WarmUp, false);
+  assertNoNullOrUndefined(current);
+});
+
+test('a newer physical record replaces current so live listeners see every update', async () => {
+  const database = new FakeDatabase();
+  await invoke(database, physicalFirmwarePayload());
+  const next = physicalFirmwarePayload({
+    eventId: 'helmet001_1a2b3c4d_8',
+    deviceTimestamp: initialNow + 5000,
+    windowEndTimestamp: initialNow + 4800,
+    temperatureC: 30.1,
+    accelZG: 0.98,
+  });
+  const response = await invoke(database, next, {
+    now: initialNow + 5000,
+    nonce: 'nonce_abcdef1234567890',
+  });
+  assert.equal(response.statusCode, 202);
+  const current = getAt(database.data, 'helmets/helmet001/current');
+  assert.equal(current.eventId, 'helmet001_1a2b3c4d_8');
+  assert.equal(current.temperatureC, 30.1);
+  assert.equal(current.accelZG, 0.98);
+  assert.equal(current.windowEndTimestamp, initialNow + 4800);
+});
