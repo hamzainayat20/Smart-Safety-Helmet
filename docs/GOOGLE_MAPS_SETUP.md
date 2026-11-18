@@ -49,3 +49,37 @@ Restrict the Android key to the final application ID, approved signing-certifica
 - Never put a Web key directly in source-controlled HTML or Dart source.
 - Web keys are delivered to browsers and therefore require strict origin and API restrictions.
 - Do not copy keys into screenshots, logs, test fixtures, or issue reports.
+
+## Simulated GPS for demonstrations (no GPS module fitted)
+
+The helmet prototype has no GPS module, so real telemetry correctly shows
+**GPS Lost**. For a presentation, a build can place helmets that have no real
+fix at one fixed, approved public test coordinate. This is compile-time gated
+and **off by default**:
+
+```powershell
+$env:GOOGLE_MAPS_WEB_API_KEY = "<your key, never committed>"
+flutter run -d chrome --web-port 53033 `
+  --dart-define=GOOGLE_MAPS_WEB_API_KEY=$env:GOOGLE_MAPS_WEB_API_KEY `
+  --dart-define=SMART_SAFETY_ENABLE_SIMULATED_GPS=true `
+  --dart-define=SMART_SAFETY_SIMULATED_LAT=<approved public test latitude> `
+  --dart-define=SMART_SAFETY_SIMULATED_LNG=<approved public test longitude>
+```
+
+Rules enforced in `lib/application/simulated_gps.dart` and
+`GpsMapViewModel`:
+
+- The demo location exists only in the map view model. It is never written to
+  Firebase, never attached to a `SensorReading`, and never sent to the
+  backend. Signed ingestion and the telemetry contract are unchanged.
+- A real GPS fix always takes precedence. Only helmets that are reporting
+  telemetry but have no location are placed at the demo location.
+- The marker, map badge, worker list, details sheet and header all say
+  **Simulated GPS / demo location**. No HDOP or "valid fix" is claimed, and the
+  marker colour follows the real telemetry state (stale telemetry shows stale).
+- Missing, non-numeric, NaN, infinite, out-of-range and 0,0 coordinates are
+  rejected; the map then shows "Simulated GPS not enabled" and keeps GPS Lost.
+- Browser geolocation is never requested. Use a public site location (for
+  example a university building), never a home address.
+
+Omit the three `SMART_SAFETY_*` defines to return to the honest default.

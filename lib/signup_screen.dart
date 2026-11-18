@@ -64,8 +64,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AppPageHeader(
-              eyebrow: 'CREATE ACCOUNT',
               title: 'Get started',
+              compact: true,
               subtitle: 'Set up your worker profile',
               leading: HeaderIconButton(
                 icon: Icons.arrow_back_rounded,
@@ -88,7 +88,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          AppCard(
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.md,
+                              vertical: AppSpacing.sm,
+                            ),
+                            decoration: BoxDecoration(
+                              color: SafetyStatus.pending.palette.tint,
+                              border: Border(
+                                left: BorderSide(
+                                  color: SafetyStatus.pending.palette.strong,
+                                  width: 3,
+                                ),
+                              ),
+                            ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [

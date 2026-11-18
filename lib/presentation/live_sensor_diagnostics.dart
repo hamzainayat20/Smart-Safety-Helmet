@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../domain/models.dart';
+import '../domain/mq7_co_estimate.dart';
 import 'design_system/design_system.dart';
 import 'formatters.dart';
 
@@ -33,6 +34,7 @@ class LiveSensorDiagnostics extends StatelessWidget {
     this.assessment,
     this.isLive = true,
     this.nowUtc,
+    this.mq7CleanAirRaw,
   });
 
   final SensorReading reading;
@@ -45,6 +47,10 @@ class LiveSensorDiagnostics extends StatelessWidget {
 
   /// Clock override for deterministic tests.
   final DateTime? nowUtc;
+
+  /// Clean-air MQ-7 baseline for the display-only CO estimate. Null uses the
+  /// SMART_SAFETY_MQ7_CLEAN_AIR_RAW build define (unset = no estimate).
+  final int? mq7CleanAirRaw;
 
   @override
   Widget build(BuildContext context) {
@@ -194,6 +200,17 @@ class LiveSensorDiagnostics extends StatelessWidget {
               : '${reading.mq7Raw} (Raw ADC — not ppm)',
         ),
         KeyValueRow(
+          label: 'Estimated CO (uncalibrated)',
+          value: reading.mq7Raw == null
+              ? unavailableLabel
+              : estimateMq7Co(
+                  raw: reading.mq7Raw,
+                  cleanAirRaw:
+                      mq7CleanAirRaw ??
+                      parseMq7CleanAirRaw(mq7CleanAirRawDefine),
+                ).label,
+        ),
+        KeyValueRow(
           label: 'MQ-7 readiness',
           value: switch (reading.mq7WarmUp) {
             null => unavailableLabel,
@@ -217,7 +234,9 @@ class LiveSensorDiagnostics extends StatelessWidget {
           padding: const EdgeInsets.only(top: AppSpacing.xs),
           child: Text(
             'Raw ADC counts are uncalibrated. They do not show whether carbon '
-            'monoxide levels are safe or dangerous.',
+            'monoxide levels are safe or dangerous. The estimated CO value is '
+            'a rough datasheet approximation (errors of 2x or more), is not '
+            'a measurement, and is never used for safety status or alerts.',
             style: AppTypography.caption.copyWith(
               color: AppColors.textSecondary,
             ),

@@ -54,8 +54,8 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AppPageHeader(
-              eyebrow: 'INCIDENT RECORD',
               title: 'Alert Detail',
+              compact: true,
               subtitle: 'Authenticated incident record',
               leading: HeaderIconButton(
                 icon: Icons.arrow_back_rounded,
@@ -84,14 +84,17 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
         kind: _viewModel.permissionDenied
             ? StateViewKind.permissionDenied
             : StateViewKind.empty,
-        title: _viewModel.permissionDenied ? 'Access denied' : 'Alert unavailable',
+        title: _viewModel.permissionDenied
+            ? 'Access denied'
+            : 'Alert unavailable',
         message:
             _viewModel.errorMessage ??
             'This alert does not exist or is outside your assigned scope.',
       );
     }
     final status = safetyStatusForSeverity(alert.severity);
-    return ListView(
+    final isMobile = MediaQuery.sizeOf(context).width < 720;
+    final content = ListView(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.md,
         AppSpacing.lg,
@@ -134,7 +137,10 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
-              StatusChip(status: status, label: alert.severity.name.toUpperCase()),
+              StatusChip(
+                status: status,
+                label: alert.severity.name.toUpperCase(),
+              ),
               const SizedBox(height: AppSpacing.sm),
               const Divider(),
               _DetailRow(label: 'Event ID', value: alert.eventId),
@@ -184,7 +190,10 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
           title: 'Timestamps and delivery',
           icon: Icons.schedule_outlined,
           children: [
-            _DetailRow(label: 'Device time', value: _utc(alert.deviceTimestamp)),
+            _DetailRow(
+              label: 'Device time',
+              value: _utc(alert.deviceTimestamp),
+            ),
             _DetailRow(
               label: 'Server received',
               value: _utc(alert.serverReceivedAt),
@@ -275,53 +284,9 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
             ),
           ),
         ],
-        if (widget.profile.role != UserRole.worker) ...[
+        if (!isMobile && widget.profile.role != UserRole.worker) ...[
           const SizedBox(height: AppSpacing.lg),
-          if (_viewModel.canAcknowledge)
-            SizedBox(
-              height: 56,
-              child: FilledButton.icon(
-                key: const Key('acknowledge-alert-button'),
-                onPressed: _viewModel.isAcknowledging
-                    ? null
-                    : () => _confirmAcknowledgement(context),
-                icon: _viewModel.isAcknowledging
-                    ? const SizedBox.square(
-                        dimension: AppSizes.iconMd,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.done_rounded),
-                label: Text(
-                  _viewModel.isAcknowledging
-                      ? 'Confirming with backend...'
-                      : 'Acknowledge',
-                ),
-              ),
-            ),
-          if (alert.status == AlertStatus.acknowledged) ...[
-            const SizedBox(height: AppSpacing.sm),
-            AppButton(
-              label: _viewModel.isResolving
-                  ? 'Checking live hazard state...'
-                  : 'Resolve after hazard clears',
-              icon: Icons.health_and_safety_outlined,
-              variant: AppButtonVariant.secondary,
-              loading: _viewModel.isResolving,
-              onPressed: () => _requestResolution(context),
-            ),
-          ],
-          if (alert.deliveredAt == null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            AppButton(
-              label: _viewModel.isRetryingDelivery
-                  ? 'Retrying notification...'
-                  : 'Retry supervisor notification',
-              icon: Icons.refresh_rounded,
-              variant: AppButtonVariant.secondary,
-              loading: _viewModel.isRetryingDelivery,
-              onPressed: () => _retryDelivery(context),
-            ),
-          ],
+          _responseActions(context, alert),
           const SizedBox(height: AppSpacing.md),
           Text(
             'Acknowledgement records that the incident was seen. It never changes the original evidence or marks an ongoing hazard safe.',
@@ -331,6 +296,80 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
           ),
         ],
       ],
+    );
+    if (!isMobile || widget.profile.role == UserRole.worker) return content;
+    return Column(
+      children: [
+        Expanded(child: content),
+        _PinnedActions(child: _responseActions(context, alert, compact: true)),
+      ],
+    );
+  }
+
+  Widget _responseActions(
+    BuildContext context,
+    SafetyAlert alert, {
+    bool compact = false,
+  }) {
+    final actions = <Widget>[
+      if (_viewModel.canAcknowledge)
+        AppButton(
+          key: const Key('acknowledge-alert-button'),
+          label: _viewModel.isAcknowledging
+              ? 'Confirming with backend...'
+              : 'Acknowledge',
+          icon: Icons.done_rounded,
+          loading: _viewModel.isAcknowledging,
+          onPressed: () => _confirmAcknowledgement(context),
+        ),
+      if (alert.status == AlertStatus.acknowledged)
+        AppButton(
+          label: _viewModel.isResolving
+              ? 'Checking hazard...'
+              : 'Resolve after clear',
+          icon: Icons.health_and_safety_outlined,
+          variant: AppButtonVariant.secondary,
+          loading: _viewModel.isResolving,
+          onPressed: () => _requestResolution(context),
+        ),
+      if (alert.deliveredAt == null)
+        AppButton(
+          label: _viewModel.isRetryingDelivery
+              ? 'Retrying...'
+              : 'Retry notification',
+          icon: Icons.refresh_rounded,
+          variant: AppButtonVariant.secondary,
+          loading: _viewModel.isRetryingDelivery,
+          onPressed: () => _retryDelivery(context),
+        ),
+    ];
+    if (actions.isEmpty) {
+      return Text(
+        'No response action is currently required.',
+        style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+      );
+    }
+    if (!compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var index = 0; index < actions.length; index++) ...[
+            if (index > 0) const SizedBox(height: AppSpacing.sm),
+            SizedBox(height: 56, child: actions[index]),
+          ],
+        ],
+      );
+    }
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var index = 0; index < actions.length; index++) ...[
+            if (index > 0) const SizedBox(width: AppSpacing.sm),
+            SizedBox(height: AppSizes.touchTarget, child: actions[index]),
+          ],
+        ],
+      ),
     );
   }
 
@@ -476,6 +515,31 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
   }
 }
 
+class _PinnedActions extends StatelessWidget {
+  const _PinnedActions({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    top: false,
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: child,
+    ),
+  );
+}
+
 class _DetailRow extends StatelessWidget {
   const _DetailRow({required this.label, required this.value});
 
@@ -612,4 +676,3 @@ String _evidenceLabel(String value) => value
     .replaceAllMapped(RegExp(r'([A-Z])'), (match) => ' ${match.group(1)}')
     .replaceAll('_', ' ')
     .trim();
-

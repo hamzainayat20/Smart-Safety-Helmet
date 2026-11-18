@@ -11,6 +11,7 @@ export 'filter_menu.dart';
 export 'identity.dart';
 export 'key_value_row.dart';
 export 'metric_tile.dart';
+export 'one_shot_attention.dart';
 export 'page_header.dart';
 export 'responsive_tile_grid.dart';
 export 'section_header.dart';

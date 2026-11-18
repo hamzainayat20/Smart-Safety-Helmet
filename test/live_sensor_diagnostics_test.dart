@@ -247,9 +247,9 @@ void main() {
       host(LiveSensorDiagnostics(reading: reading, nowUtc: now)),
     );
 
-    // Temperature, humidity, heat index, MQ-7, MQ-135, window, window end,
-    // AI fall check and AI gas class are all unavailable.
-    expect(find.text('Unavailable'), findsNWidgets(9));
+    // Temperature, humidity, heat index, MQ-7, estimated CO, MQ-135, window,
+    // window end, AI fall check and AI gas class are all unavailable.
+    expect(find.text('Unavailable'), findsNWidgets(10));
     expect(find.textContaining('0 °C'), findsNothing);
     expect(find.text('Advanced fall-model features'), findsNothing);
     for (final label in [

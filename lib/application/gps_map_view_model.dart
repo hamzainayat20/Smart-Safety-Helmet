@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../domain/models.dart';
 import '../user_role.dart';
 import 'dashboard_view_model.dart';
+import 'simulated_gps.dart';
 
 enum HelmetMapState { safe, warning, critical, stale, gpsAcquiring, gpsLost }
 
@@ -15,6 +16,7 @@ final class HelmetMapItem {
     required this.reading,
     required this.location,
     required this.activeAlert,
+    this.isSimulatedLocation = false,
   });
 
   final Helmet helmet;
@@ -24,6 +26,10 @@ final class HelmetMapItem {
   final SensorReading? reading;
   final GPSLocation? location;
   final SafetyAlert? activeAlert;
+
+  /// True when [location] is a build-time demo location rather than a fix
+  /// reported by helmet hardware.
+  final bool isSimulatedLocation;
 
   bool get hasMapPosition => location != null;
   bool get isLastKnown => location?.isLastKnown ?? false;
@@ -99,6 +105,7 @@ final class GpsMapViewModel extends ChangeNotifier {
     required this.dashboard,
     DateTime Function()? clock,
     this.gpsStaleAfter = const Duration(seconds: 30),
+    this.simulatedLocations = const DisabledSimulatedLocationProvider(),
   }) : _clock = clock ?? DateTime.now {
     dashboard.addListener(_dashboardChanged);
   }
@@ -106,6 +113,15 @@ final class GpsMapViewModel extends ChangeNotifier {
   final DashboardViewModel dashboard;
   final DateTime Function() _clock;
   final Duration gpsStaleAfter;
+
+  /// Demo locations for helmets without a real fix. Disabled by default.
+  final SimulatedLocationProvider simulatedLocations;
+
+  /// True when this build shows demo locations.
+  bool get simulationActive => simulatedLocations.isActive;
+
+  /// Why requested simulation was refused (invalid configuration), if so.
+  String? get simulationProblem => simulatedLocations.configurationProblem;
 
   UserProfile get profile => dashboard.profile;
   bool get isLoading => dashboard.isLoading;
@@ -128,7 +144,17 @@ final class GpsMapViewModel extends ChangeNotifier {
             .map(_project)
             .toList()
           ..sort((a, b) => a.helmet.helmetId.compareTo(b.helmet.helmetId));
-    return List.unmodifiable(items);
+    if (!simulatedLocations.isActive) return List.unmodifiable(items);
+    var simulatedIndex = 0;
+    return List.unmodifiable([
+      for (final item in items)
+        // A real fix always wins. Only helmets that are reporting telemetry
+        // but have no location are placed at the demo location.
+        if (item.location == null && item.reading != null)
+          _withSimulatedLocation(item, simulatedIndex++)
+        else
+          item,
+    ]);
   }
 
   List<HelmetMapItem> get positionedItems =>
@@ -178,6 +204,33 @@ final class GpsMapViewModel extends ChangeNotifier {
       activeAlert: activeAlerts.firstOrNull,
     );
   }
+
+  HelmetMapItem _withSimulatedLocation(HelmetMapItem item, int index) {
+    final location = simulatedLocations.locationFor(item.helmet, index);
+    if (location == null) return item;
+    return HelmetMapItem(
+      helmet: item.helmet,
+      workerName: item.workerName,
+      sensorState: item.sensorState,
+      markerState: _sensorMarkerState(item.sensorState),
+      reading: item.reading,
+      location: location,
+      activeAlert: item.activeAlert,
+      isSimulatedLocation: true,
+    );
+  }
+
+  // Colour for a positioned helmet, from its real (non-GPS) telemetry state.
+  HelmetMapState _sensorMarkerState(MonitoringState sensorState) =>
+      switch (sensorState) {
+        MonitoringState.critical ||
+        MonitoringState.sensorFault => HelmetMapState.critical,
+        MonitoringState.warning ||
+        MonitoringState.warmingUp => HelmetMapState.warning,
+        MonitoringState.stale ||
+        MonitoringState.offline => HelmetMapState.stale,
+        _ => HelmetMapState.safe,
+      };
 
   HelmetMapState _markerState(
     SensorReading? reading,

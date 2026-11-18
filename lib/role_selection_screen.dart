@@ -54,25 +54,12 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                           AppSpacing.md,
                         ),
                         children: [
-                          Row(
-                            children: [
-                              const BrandMark(size: 40),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: Text(
-                                  'SafeHelmet Pro',
-                                  style: AppTypography.subtitle.copyWith(
-                                    color: AppColors.onInk,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                          const BrandLockup(),
                           const SizedBox(height: AppSpacing.xl),
                           Semantics(
                             header: true,
                             child: Text(
-                              'Who are you?',
+                              'Choose your workspace',
                               style: AppTypography.display.copyWith(
                                 color: AppColors.onInk,
                               ),
@@ -80,7 +67,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           Text(
-                            'Choose a portal. Your trusted account assignment controls access.',
+                            'Select the view that matches your assigned account role.',
                             style: AppTypography.body.copyWith(
                               color: AppColors.onInkMuted,
                             ),
@@ -89,9 +76,8 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                           _RoleCard(
                             title: 'Supervisor',
                             description:
-                                'Monitor workers, receive alerts, manage helmets',
+                                'Monitor workers, respond to alerts and manage helmets',
                             leading: Icons.supervisor_account_outlined,
-                            chips: const ['Live dashboard', 'GPS map', 'Alerts'],
                             selected: _role == UserRole.supervisor,
                             onTap: () =>
                                 setState(() => _role = UserRole.supervisor),
@@ -102,7 +88,6 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                             description:
                                 'View your own helmet status and alerts',
                             leading: Icons.engineering_outlined,
-                            chips: const ['Status view', 'My alerts'],
                             selected: _role == UserRole.worker,
                             onTap: () =>
                                 setState(() => _role = UserRole.worker),
@@ -168,7 +153,6 @@ class _RoleCard extends StatelessWidget {
     required this.title,
     required this.description,
     required this.leading,
-    required this.chips,
     required this.selected,
     required this.onTap,
   });
@@ -176,7 +160,6 @@ class _RoleCard extends StatelessWidget {
   final String title;
   final String description;
   final IconData leading;
-  final List<String> chips;
   final bool selected;
   final VoidCallback onTap;
 
@@ -202,7 +185,7 @@ class _RoleCard extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
                   width: AppSizes.touchTarget,
@@ -245,32 +228,6 @@ class _RoleCard extends StatelessWidget {
                           color: AppColors.onInkMuted,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                      Wrap(
-                        spacing: AppSpacing.sm,
-                        runSpacing: AppSpacing.sm,
-                        children: [
-                          for (final chip in chips)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.sm,
-                                vertical: AppSpacing.xs,
-                              ),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(
-                                  AppRadius.sm,
-                                ),
-                                border: Border.all(color: AppColors.inkBorder),
-                              ),
-                              child: Text(
-                                chip,
-                                style: AppTypography.caption.copyWith(
-                                  color: AppColors.onInkMuted,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
                     ],
                   ),
                 ),
@@ -302,7 +259,11 @@ class _SelectionMark extends StatelessWidget {
       ),
     ),
     child: selected
-        ? const Icon(Icons.check_rounded, size: AppSizes.iconSm, color: AppColors.ink)
+        ? const Icon(
+            Icons.check_rounded,
+            size: AppSizes.iconSm,
+            color: AppColors.ink,
+          )
         : null,
   );
 }

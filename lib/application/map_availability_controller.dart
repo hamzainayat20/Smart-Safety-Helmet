@@ -19,7 +19,9 @@ final class MapAvailabilityController extends ChangeNotifier {
     _initializing = true;
     try {
       _result = await _runtime.initialize();
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      debugPrint('Google Maps runtime initialization failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
       _result = const MapsRuntimeResult(
         MapsRuntimeStatus.loadFailed,
         message: 'Interactive map initialization failed safely.',

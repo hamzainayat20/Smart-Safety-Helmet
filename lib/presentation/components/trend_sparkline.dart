@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../design_system/app_tokens.dart';
+import '../design_system/motion.dart';
 import '../design_system/safety_status.dart';
 
 /// Direction of a short series of readings.
@@ -31,6 +32,8 @@ class TrendSparkline extends StatelessWidget {
     this.warningAt,
     this.unit = '',
     this.height = AppSpacing.xl,
+    this.startLabel = 'Older',
+    this.endLabel = 'Latest',
   });
 
   /// Readings, oldest first.
@@ -39,13 +42,14 @@ class TrendSparkline extends StatelessWidget {
   final double? warningAt;
   final String unit;
   final double height;
+  final String startLabel;
+  final String endLabel;
 
-  static String directionLabel(TrendDirection direction) =>
-      switch (direction) {
-        TrendDirection.rising => 'Rising',
-        TrendDirection.falling => 'Falling',
-        TrendDirection.steady => 'Steady',
-      };
+  static String directionLabel(TrendDirection direction) => switch (direction) {
+    TrendDirection.rising => 'Rising',
+    TrendDirection.falling => 'Falling',
+    TrendDirection.steady => 'Steady',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -66,14 +70,21 @@ class TrendSparkline extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(
-              height: height,
-              child: CustomPaint(
-                painter: _SparklinePainter(
-                  values: values,
-                  line: line,
-                  warningAt: warningAt,
-                  warningColor: SafetyStatus.warning.palette.strong,
+            TweenAnimationBuilder<double>(
+              key: ValueKey(values.join(',')),
+              duration: AppMotion.of(context, AppMotion.standard),
+              curve: AppMotion.enter,
+              tween: Tween(begin: 0, end: 1),
+              builder: (context, progress, _) => SizedBox(
+                height: height,
+                child: CustomPaint(
+                  painter: _SparklinePainter(
+                    values: values,
+                    line: line,
+                    warningAt: warningAt,
+                    warningColor: SafetyStatus.warning.palette.strong,
+                    progress: progress,
+                  ),
                 ),
               ),
             ),
@@ -102,6 +113,26 @@ class TrendSparkline extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 2),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  startLabel,
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+                Text(
+                  endLabel,
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -115,12 +146,14 @@ class _SparklinePainter extends CustomPainter {
     required this.line,
     required this.warningAt,
     required this.warningColor,
+    required this.progress,
   });
 
   final List<double> values;
   final Color line;
   final double? warningAt;
   final Color warningColor;
+  final double progress;
 
   static const double _stroke = 2;
   static const double _dotRadius = 3;
@@ -163,7 +196,10 @@ class _SparklinePainter extends CustomPainter {
       }
     }
 
-    final path = Path()..moveTo(point(0, values.first).dx, point(0, values.first).dy);
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, size.width * progress, size.height));
+    final path = Path()
+      ..moveTo(point(0, values.first).dx, point(0, values.first).dy);
     for (var i = 1; i < values.length; i++) {
       final p = point(i, values[i]);
       path.lineTo(p.dx, p.dy);
@@ -182,12 +218,14 @@ class _SparklinePainter extends CustomPainter {
       _dotRadius,
       Paint()..color = line,
     );
+    canvas.restore();
   }
 
   @override
   bool shouldRepaint(_SparklinePainter oldDelegate) =>
       oldDelegate.line != line ||
       oldDelegate.warningAt != warningAt ||
+      oldDelegate.progress != progress ||
       !_sameValues(oldDelegate.values, values);
 
   static bool _sameValues(List<double> a, List<double> b) {

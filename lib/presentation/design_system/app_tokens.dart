@@ -21,12 +21,12 @@ abstract final class AppColors {
   static const onInkMuted = Color(0xFFB4BFCF);
 
   // Work surface (light) -----------------------------------------------------
-  static const canvas = Color(0xFFEEF1F5);
+  static const canvas = Color(0xFFF4F6F8);
   static const surface = Color(0xFFFFFFFF);
   static const surfaceSunken = Color(0xFFF7F9FB);
 
   /// Decorative hairline (card edges, dividers). Not used as a sole indicator.
-  static const border = Color(0xFFDFE4EB);
+  static const border = Color(0xFFE2E7ED);
 
   /// Control boundary (inputs, outlined buttons) — 3.7:1 on white.
   static const borderControl = Color(0xFF7A8599);
@@ -48,7 +48,7 @@ abstract final class AppColors {
   // Brand ---------------------------------------------------------------------
   /// Hi-vis helmet yellow. Brand mark only — never a status or action colour,
   /// so it can never be confused with a warning.
-  static const brand = Color(0xFFFFC20E);
+  static const brand = Color(0xFFF5B700);
 
   /// Hairline shadow colour for subtle card depth (never floating shadows).
   static const shadow = Color(0x140B1221);
@@ -96,6 +96,8 @@ abstract final class AppTypography {
   static const double minimumFontSize = 14;
 
   static const _tabular = [FontFeature.tabularFigures()];
+  static const _uiFallback = ['Roboto', 'Segoe UI', 'Arial'];
+  static const _dataFallback = ['Roboto Mono', 'Consolas', 'monospace'];
 
   static const display = TextStyle(
     fontSize: 32,
@@ -103,42 +105,58 @@ abstract final class AppTypography {
     fontWeight: FontWeight.w700,
     letterSpacing: -0.4,
     fontFeatures: _tabular,
+    fontFamily: 'Inter',
+    fontFamilyFallback: _uiFallback,
   );
   static const headline = TextStyle(
-    fontSize: 24,
-    height: 32 / 24,
-    fontWeight: FontWeight.w700,
+    fontSize: 28,
+    height: 36 / 28,
+    fontWeight: FontWeight.w600,
     letterSpacing: -0.2,
+    fontFamily: 'Inter',
+    fontFamilyFallback: _uiFallback,
   );
   static const title = TextStyle(
     fontSize: 20,
     height: 28 / 20,
     fontWeight: FontWeight.w700,
+    fontFamily: 'Inter',
+    fontFamilyFallback: _uiFallback,
   );
   static const subtitle = TextStyle(
     fontSize: 18,
     height: 24 / 18,
     fontWeight: FontWeight.w600,
+    fontFamily: 'Inter',
+    fontFamilyFallback: _uiFallback,
   );
   static const body = TextStyle(
     fontSize: 16,
     height: 24 / 16,
     fontWeight: FontWeight.w400,
+    fontFamily: 'Inter',
+    fontFamilyFallback: _uiFallback,
   );
   static const bodyStrong = TextStyle(
     fontSize: 16,
     height: 24 / 16,
     fontWeight: FontWeight.w600,
+    fontFamily: 'Inter',
+    fontFamilyFallback: _uiFallback,
   );
   static const label = TextStyle(
     fontSize: 14,
     height: 20 / 14,
     fontWeight: FontWeight.w600,
+    fontFamily: 'Inter',
+    fontFamilyFallback: _uiFallback,
   );
   static const caption = TextStyle(
     fontSize: 14,
     height: 20 / 14,
     fontWeight: FontWeight.w400,
+    fontFamily: 'Inter',
+    fontFamilyFallback: _uiFallback,
   );
 
   /// Section eyebrows. Callers pass upper-case text.
@@ -147,14 +165,18 @@ abstract final class AppTypography {
     height: 20 / 14,
     fontWeight: FontWeight.w700,
     letterSpacing: 0.8,
+    fontFamily: 'Inter',
+    fontFamilyFallback: _uiFallback,
   );
 
   /// Sensor values and counts — tabular so live numbers do not jitter.
   static const metric = TextStyle(
-    fontSize: 24,
-    height: 32 / 24,
+    fontSize: 30,
+    height: 36 / 30,
     fontWeight: FontWeight.w700,
     fontFeatures: _tabular,
+    fontFamily: 'IBM Plex Mono',
+    fontFamilyFallback: _dataFallback,
   );
 
   static const all = <String, TextStyle>{

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:web/web.dart' as web;
 
 import 'maps_runtime_contract.dart';
@@ -10,6 +11,13 @@ const String _webMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_WEB_API_KEY');
 
 MapsRuntime createMapsRuntime({required Duration timeout}) =>
     _WebMapsRuntime(apiKey: _webMapsApiKey, timeout: timeout);
+
+/// Browser tests only: the same runtime with an explicit key.
+@visibleForTesting
+MapsRuntime createWebMapsRuntimeForTesting({
+  required String apiKey,
+  required Duration timeout,
+}) => _WebMapsRuntime(apiKey: apiKey, timeout: timeout);
 
 final class _WebMapsRuntime implements MapsRuntime {
   _WebMapsRuntime({required this.apiKey, required this.timeout});
@@ -52,7 +60,7 @@ final class _WebMapsRuntime implements MapsRuntime {
         // Give the SDK's authentication callback a chance to reject an
         // invalid or incorrectly restricted key before any map is rendered.
         await Future<void>.delayed(const Duration(milliseconds: 250));
-        if (script.dataset['loadState'] == 'failed') {
+        if (_scriptLoadFailed(script)) {
           return const MapsRuntimeResult(
             MapsRuntimeStatus.invalidConfiguration,
             message: 'The Web Maps API key was rejected.',
@@ -60,7 +68,7 @@ final class _WebMapsRuntime implements MapsRuntime {
         }
         return const MapsRuntimeResult.ready();
       }
-      if (script.dataset['loadState'] == 'failed') {
+      if (_scriptLoadFailed(script)) {
         return const MapsRuntimeResult(
           MapsRuntimeStatus.loadFailed,
           message: 'The Google Maps JavaScript API failed to load.',
@@ -78,7 +86,7 @@ final class _WebMapsRuntime implements MapsRuntime {
     final script = web.HTMLScriptElement()
       ..async = true
       ..defer = true
-      ..dataset['smartSafetyGoogleMaps'] = 'true'
+      ..setAttribute('data-smart-safety-google-maps', 'true')
       ..src = Uri.https('maps.googleapis.com', '/maps/api/js', {
         'key': key,
         'loading': 'async',
@@ -86,18 +94,21 @@ final class _WebMapsRuntime implements MapsRuntime {
     globalContext.setProperty(
       'gm_authFailure'.toJS,
       (() {
-        script.dataset['loadState'] = 'failed';
+        script.setAttribute('data-load-state', 'failed');
       }).toJS,
     );
     script.addEventListener(
       'error',
       ((web.Event _) {
-        script.dataset['loadState'] = 'failed';
+        script.setAttribute('data-load-state', 'failed');
       }).toJS,
     );
     web.document.head?.append(script);
     return script;
   }
+
+  bool _scriptLoadFailed(web.HTMLScriptElement script) =>
+      script.getAttribute('data-load-state') == 'failed';
 
   bool _mapsJavascriptApiIsReady() {
     try {

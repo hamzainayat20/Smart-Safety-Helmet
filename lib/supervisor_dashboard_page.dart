@@ -10,7 +10,7 @@ import 'presentation/formatters.dart';
 import 'presentation/monitoring_state.dart';
 import 'sensor_detail_screen.dart';
 
-class SupervisorDashboardPage extends StatelessWidget {
+class SupervisorDashboardPage extends StatefulWidget {
   const SupervisorDashboardPage({
     super.key,
     required this.viewModel,
@@ -23,6 +23,22 @@ class SupervisorDashboardPage extends StatelessWidget {
 
   /// Centres the GPS map on a position; the shell switches to the map tab.
   final ValueChanged<MapFocusRequest>? onLocate;
+
+  @override
+  State<SupervisorDashboardPage> createState() =>
+      _SupervisorDashboardPageState();
+}
+
+enum _WorkerFilter { all, attention, safe, offline }
+
+class _SupervisorDashboardPageState extends State<SupervisorDashboardPage> {
+  _WorkerFilter _workerFilter = _WorkerFilter.all;
+  String? _siteFilter;
+  String _query = '';
+
+  DashboardViewModel get viewModel => widget.viewModel;
+  VoidCallback get onSignOut => widget.onSignOut;
+  ValueChanged<MapFocusRequest>? get onLocate => widget.onLocate;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +60,6 @@ class SupervisorDashboardPage extends StatelessWidget {
   Widget _buildHeader() {
     final profile = viewModel.profile;
     return AppPageHeader(
-      eyebrow: 'WELCOME BACK',
       title: profile.displayName,
       titleSuffix: const RoleTag(label: 'Supervisor'),
       subtitle:
@@ -94,6 +109,7 @@ class SupervisorDashboardPage extends StatelessWidget {
     }
 
     final attention = _attentionAlerts();
+    final filteredHelmets = _filteredHelmets();
     return ListView(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
@@ -102,11 +118,7 @@ class SupervisorDashboardPage extends StatelessWidget {
         AppSpacing.xl,
       ),
       children: [
-        _SiteOverview(viewModel: viewModel),
-        const SizedBox(height: AppSpacing.md),
-        _buildKpis(),
         if (attention.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.lg),
           SectionHeader(
             title: 'Act now',
             subtitle: 'Open alerts awaiting acknowledgement',
@@ -138,46 +150,154 @@ class SupervisorDashboardPage extends StatelessWidget {
                 ),
               ),
             ),
+          const SizedBox(height: AppSpacing.lg),
         ],
+        _SiteOverview(viewModel: viewModel),
+        const SizedBox(height: AppSpacing.md),
+        _buildKpis(),
         const SizedBox(height: AppSpacing.lg),
         SectionHeader(
-          title: 'Worker Status',
+          title: 'Worker status',
           trailing: Text(
-            '${viewModel.helmets.length} assigned',
+            '${filteredHelmets.length} shown',
             style: AppTypography.caption.copyWith(
               color: AppColors.textSecondary,
             ),
           ),
         ),
-        for (final helmet in viewModel.sortedHelmets)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: _WorkerTile(
-              name: viewModel.workerNameFor(helmet),
-              details:
-                  '${viewModel.siteNameFor(helmet)} • ${helmet.zone ?? 'Zone unavailable'} • '
-                  'Helmet #${helmet.helmetId}',
-              updated: viewModel.lastUpdateFor(helmet) == null
-                  ? 'Never updated'
-                  : 'Last update ${formatRelativeTime(viewModel.lastUpdateFor(helmet)!)}',
-              statusLabel: viewModel.stateLabelFor(helmet),
-              status: safetyStatusForMonitoringState(
-                viewModel.monitoringStateFor(helmet),
-              ),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => SensorDetailScreen(
-                    helmetId: helmet.helmetId,
-                    workerName: viewModel.workerNameFor(helmet),
-                    viewModel: viewModel,
+        _workerFilters(),
+        const SizedBox(height: AppSpacing.sm),
+        if (filteredHelmets.isEmpty)
+          const StateView(
+            kind: StateViewKind.empty,
+            title: 'No workers match',
+            message: 'Adjust the status, site or helmet search filters.',
+          )
+        else
+          AppCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                for (
+                  var index = 0;
+                  index < filteredHelmets.length;
+                  index++
+                ) ...[
+                  _WorkerTile(
+                    name: viewModel.workerNameFor(filteredHelmets[index]),
+                    details:
+                        '${viewModel.siteNameFor(filteredHelmets[index])} • ${filteredHelmets[index].zone ?? 'Zone unavailable'} • '
+                        'Helmet #${filteredHelmets[index].helmetId}',
+                    updated:
+                        viewModel.lastUpdateFor(filteredHelmets[index]) == null
+                        ? 'Never updated'
+                        : 'Last update ${formatRelativeTime(viewModel.lastUpdateFor(filteredHelmets[index])!)}',
+                    statusLabel: viewModel.stateLabelFor(
+                      filteredHelmets[index],
+                    ),
+                    status: safetyStatusForMonitoringState(
+                      viewModel.monitoringStateFor(filteredHelmets[index]),
+                    ),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => SensorDetailScreen(
+                          helmetId: filteredHelmets[index].helmetId,
+                          workerName: viewModel.workerNameFor(
+                            filteredHelmets[index],
+                          ),
+                          viewModel: viewModel,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                  if (index < filteredHelmets.length - 1) const Divider(),
+                ],
+              ],
             ),
           ),
+        if (viewModel.alerts.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.lg),
+          const SectionHeader(
+            title: 'Recent activity',
+            subtitle: 'Latest incident and acknowledgement changes',
+          ),
+          _RecentActivity(alerts: viewModel.alerts, workerFor: _workerFor),
+        ],
       ],
     );
   }
+
+  Widget _workerFilters() {
+    final sites =
+        viewModel.sortedHelmets.map(viewModel.siteNameFor).toSet().toList()
+          ..sort();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          key: const Key('worker-search'),
+          onChanged: (value) => setState(() => _query = value.trim()),
+          decoration: const InputDecoration(
+            labelText: 'Search workers or helmets',
+            prefixIcon: Icon(Icons.search_rounded),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              FilterMenu<_WorkerFilter>(
+                label: 'Status',
+                value: _workerFilter,
+                entries: const [
+                  (_WorkerFilter.all, 'All workers'),
+                  (_WorkerFilter.attention, 'Needs attention'),
+                  (_WorkerFilter.safe, 'Safe'),
+                  (_WorkerFilter.offline, 'Offline or stale'),
+                ],
+                onSelected: (value) => setState(() => _workerFilter = value),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              FilterMenu<String?>(
+                label: 'Site',
+                value: _siteFilter,
+                entries: [
+                  (null, 'All sites'),
+                  for (final site in sites) (site, site),
+                ],
+                onSelected: (value) => setState(() => _siteFilter = value),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Helmet> _filteredHelmets() => viewModel.sortedHelmets
+      .where((helmet) {
+        final status = safetyStatusForMonitoringState(
+          viewModel.monitoringStateFor(helmet),
+        );
+        final statusMatches = switch (_workerFilter) {
+          _WorkerFilter.all => true,
+          _WorkerFilter.attention =>
+            status == SafetyStatus.warning || status == SafetyStatus.critical,
+          _WorkerFilter.safe => status == SafetyStatus.normal,
+          _WorkerFilter.offline =>
+            status == SafetyStatus.offline || status == SafetyStatus.stale,
+        };
+        final siteMatches =
+            _siteFilter == null || viewModel.siteNameFor(helmet) == _siteFilter;
+        final query = _query.toLowerCase();
+        final queryMatches =
+            query.isEmpty ||
+            helmet.helmetId.toLowerCase().contains(query) ||
+            viewModel.workerNameFor(helmet).toLowerCase().contains(query);
+        return statusMatches && siteMatches && queryMatches;
+      })
+      .toList(growable: false);
 
   Widget _buildKpis() {
     final live = viewModel.statisticsAreLive;
@@ -307,10 +427,8 @@ class _SiteOverview extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'SITE SAFETY OVERVIEW',
-            style: AppTypography.overline.copyWith(
-              color: AppColors.textSecondary,
-            ),
+            'Site safety overview',
+            style: AppTypography.label.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.sm),
           Row(
@@ -407,72 +525,76 @@ class _AttentionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = safetyStatusForSeverity(alert.severity);
-    return AppCard(
-      status: status,
-      onTap: onOpen,
-      semanticLabel:
-          '${alertTypeLabel(alert.type)} alert for $workerName, ${status.label}. Open details',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              IconTile(icon: alertTypeIcon(alert.type), status: status),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${alertTypeLabel(alert.type)} — $workerName',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.bodyStrong.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'Helmet ${alert.helmetId} • ${formatRelativeTime(alert.serverReceivedAt)}',
-                      style: AppTypography.caption.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AppColors.textSecondary,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: AppButton(
-                  key: Key('attention-acknowledge-${alert.alertId}'),
-                  label: 'Acknowledge',
-                  icon: Icons.done_rounded,
-                  onPressed: onAcknowledge,
-                ),
-              ),
-              if (onLocate != null) ...[
-                const SizedBox(width: AppSpacing.sm),
+    return OneShotAttention(
+      signal: alert.alertId,
+      enabled: status == SafetyStatus.critical,
+      child: AppCard(
+        status: status,
+        onTap: onOpen,
+        semanticLabel:
+            '${alertTypeLabel(alert.type)} alert for $workerName, ${status.label}. Open details',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                IconTile(icon: alertTypeIcon(alert.type), status: status),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: AppButton(
-                    key: Key('attention-locate-${alert.alertId}'),
-                    label: 'Locate',
-                    icon: Icons.my_location_rounded,
-                    variant: AppButtonVariant.secondary,
-                    onPressed: onLocate,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${alertTypeLabel(alert.type)} — $workerName',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.bodyStrong.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Helmet ${alert.helmetId} • ${formatRelativeTime(alert.serverReceivedAt)}',
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.textSecondary,
+                ),
               ],
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    key: Key('attention-acknowledge-${alert.alertId}'),
+                    label: 'Acknowledge',
+                    icon: Icons.done_rounded,
+                    onPressed: onAcknowledge,
+                  ),
+                ),
+                if (onLocate != null) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: AppButton(
+                      key: Key('attention-locate-${alert.alertId}'),
+                      label: 'Locate',
+                      icon: Icons.my_location_rounded,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: onLocate,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -496,47 +618,139 @@ class _WorkerTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => AppCard(
-    onTap: onTap,
-    status: status.needsAttention ? status : null,
-    child: Row(
-      children: [
-        InitialsAvatar(name: name, status: status),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.bodyStrong.copyWith(
-                  color: AppColors.textPrimary,
-                ),
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: '$name, $statusLabel, $updated',
+    child: InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Row(
+          children: [
+            InitialsAvatar(name: name, status: status),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodyStrong.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    details,
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    updated,
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  StatusChip(status: status, label: statusLabel),
+                ],
               ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                details,
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                updated,
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              StatusChip(status: status, label: statusLabel),
-            ],
-          ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.textSecondary,
+            ),
+          ],
         ),
-        const SizedBox(width: AppSpacing.sm),
-        const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
-      ],
+      ),
     ),
   );
+}
+
+class _RecentActivity extends StatelessWidget {
+  const _RecentActivity({required this.alerts, required this.workerFor});
+
+  final List<SafetyAlert> alerts;
+  final String Function(SafetyAlert alert) workerFor;
+
+  @override
+  Widget build(BuildContext context) {
+    final recent = [...alerts]
+      ..sort((a, b) => b.serverReceivedAt.compareTo(a.serverReceivedAt));
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          for (var index = 0; index < recent.take(5).length; index++) ...[
+            _ActivityRow(
+              alert: recent[index],
+              workerName: workerFor(recent[index]),
+            ),
+            if (index < recent.take(5).length - 1) const Divider(),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow({required this.alert, required this.workerName});
+
+  final SafetyAlert alert;
+  final String workerName;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = safetyStatusForSeverity(alert.severity);
+    final lifecycle = switch (alert.status) {
+      AlertStatus.acknowledged => 'Acknowledged',
+      AlertStatus.resolved => 'Resolved',
+      AlertStatus.viewed => 'Viewed',
+      AlertStatus.delivered => 'Delivered',
+      AlertStatus.created => 'Detected',
+    };
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            status.icon,
+            size: AppSizes.iconMd,
+            color: status.palette.strong,
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$lifecycle · ${alertTypeLabel(alert.type)}',
+                  style: AppTypography.bodyStrong,
+                ),
+                Text(
+                  '$workerName · Helmet ${alert.helmetId}',
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            formatRelativeTime(alert.serverReceivedAt),
+            style: AppTypography.caption.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

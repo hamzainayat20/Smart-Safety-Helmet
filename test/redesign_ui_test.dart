@@ -93,6 +93,56 @@ void main() {
     });
   });
 
+  group('functional motion', () {
+    Widget host({required Widget child, bool reduceMotion = false}) =>
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(disableAnimations: reduceMotion),
+            child: Scaffold(body: child),
+          ),
+        );
+
+    testWidgets('connection changes animate once and settle', (tester) async {
+      await tester.pumpWidget(
+        host(
+          child: const ConnectionIndicator(
+            sourceLabel: 'Live RTDB',
+            connected: true,
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        host(
+          child: const ConnectionIndicator(
+            sourceLabel: 'Live RTDB',
+            connected: false,
+          ),
+        ),
+      );
+      expect(tester.hasRunningAnimations, isTrue);
+      await tester.pumpAndSettle();
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('critical emphasis is suppressed by reduced motion', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        host(
+          reduceMotion: true,
+          child: const OneShotAttention(
+            signal: 'alert-1',
+            enabled: true,
+            child: Text('Fall detected'),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Fall detected'), findsOneWidget);
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
+
   group('worker home', () {
     Future<void> pumpWorker(WidgetTester tester) async {
       await tester.binding.setSurfaceSize(const Size(400, 900));
@@ -188,7 +238,7 @@ void main() {
       await pumpSupervisor(tester);
       await tester.tap(keyStartingWith('attention-locate-').first);
       await tester.pumpAndSettle();
-      expect(find.text('Worker Locations'), findsOneWidget);
+      expect(find.text('Worker Map'), findsOneWidget);
     });
   });
 }

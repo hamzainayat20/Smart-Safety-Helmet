@@ -16,6 +16,7 @@ class AppPageHeader extends StatelessWidget {
     this.leading,
     this.actions = const [],
     this.bottom,
+    this.compact = false,
   });
 
   final String title;
@@ -32,13 +33,16 @@ class AppPageHeader extends StatelessWidget {
   /// Optional content under the title (connection indicator, search field).
   final Widget? bottom;
 
+  /// Reduces dark chrome on task-focused secondary screens.
+  final bool compact;
+
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(
+    padding: EdgeInsets.fromLTRB(
       AppSpacing.md,
+      compact ? AppSpacing.xs : AppSpacing.sm,
       AppSpacing.sm,
-      AppSpacing.sm,
-      AppSpacing.md,
+      compact ? AppSpacing.sm : AppSpacing.md,
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -74,9 +78,11 @@ class AppPageHeader extends StatelessWidget {
                             title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTypography.headline.copyWith(
-                              color: AppColors.onInk,
-                            ),
+                            style:
+                                (compact
+                                        ? AppTypography.title
+                                        : AppTypography.headline)
+                                    .copyWith(color: AppColors.onInk),
                           ),
                           ?titleSuffix,
                         ],
@@ -97,7 +103,7 @@ class AppPageHeader extends StatelessWidget {
           ],
         ),
         if (bottom != null) ...[
-          const SizedBox(height: AppSpacing.md),
+          SizedBox(height: compact ? AppSpacing.sm : AppSpacing.md),
           Padding(
             padding: const EdgeInsets.only(right: AppSpacing.sm),
             child: bottom!,

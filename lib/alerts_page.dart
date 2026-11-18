@@ -42,9 +42,7 @@ class _AlertsPageState extends State<AlertsPage> {
   DashboardViewModel get viewModel => widget.viewModel;
 
   bool get _hasFilters =>
-      _type != null ||
-      _status != _StatusFilter.all ||
-      _date != _DateFilter.all;
+      _type != null || _status != _StatusFilter.all || _date != _DateFilter.all;
 
   void _clearFilters() => setState(() {
     _type = null;
@@ -245,8 +243,8 @@ class _AlertsPageState extends State<AlertsPage> {
         .where((alert) => alert.status == AlertStatus.resolved)
         .length;
     return AppPageHeader(
-      eyebrow: 'INCIDENTS',
       title: 'Alert Centre',
+      compact: true,
       subtitle: '$active active • $today today • ${viewModel.dataSourceLabel}',
       actions: [
         HeaderIconButton(
@@ -372,9 +370,13 @@ class _AlertCard extends StatelessWidget {
                         : acknowledging
                         ? 'Confirming...'
                         : 'Acknowledge',
-                    icon: acknowledged ? Icons.task_alt_rounded : Icons.done_rounded,
+                    icon: acknowledged
+                        ? Icons.task_alt_rounded
+                        : Icons.done_rounded,
                     loading: acknowledging,
-                    onPressed: acknowledged ? null : () => _acknowledge(context),
+                    onPressed: acknowledged
+                        ? null
+                        : () => _acknowledge(context),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
@@ -402,10 +404,9 @@ class _AlertCard extends StatelessWidget {
     AlertStatus.resolved => 'Closed',
   };
 
-  Future<void> _acknowledge(BuildContext context) =>
-      confirmAndAcknowledgeAlert(
-        context,
-        viewModel: viewModel,
-        alertId: alert.alertId,
-      );
+  Future<void> _acknowledge(BuildContext context) => confirmAndAcknowledgeAlert(
+    context,
+    viewModel: viewModel,
+    alertId: alert.alertId,
+  );
 }

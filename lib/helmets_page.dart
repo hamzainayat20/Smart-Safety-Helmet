@@ -87,8 +87,8 @@ class _HelmetsPageState extends State<HelmetsPage> {
   Widget _buildHeader() {
     final active = viewModel.activeHelmets.length;
     return AppPageHeader(
-      eyebrow: 'FLEET',
       title: 'Helmet Management',
+      compact: true,
       subtitle:
           '${viewModel.helmets.length} registered • $active active • '
           '${viewModel.helmets.length - active} inactive • ${viewModel.dataSourceLabel}',
@@ -348,7 +348,10 @@ class _HelmetCard extends StatelessWidget {
               ),
               Expanded(
                 child: _Reading(
-                  formatMeasurement(reading?.gasPpm, SensorUnit.partsPerMillion),
+                  formatMeasurement(
+                    reading?.gasPpm,
+                    SensorUnit.partsPerMillion,
+                  ),
                   'Gas',
                 ),
               ),
@@ -364,7 +367,11 @@ class _HelmetCard extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.xs),
               Text(
-                formatMeasurement(battery, SensorUnit.percent, fractionDigits: 0),
+                formatMeasurement(
+                  battery,
+                  SensorUnit.percent,
+                  fractionDigits: 0,
+                ),
                 style: AppTypography.label.copyWith(
                   color: AppColors.textPrimary,
                 ),

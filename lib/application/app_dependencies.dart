@@ -1,5 +1,6 @@
 import '../data/mock_repositories.dart';
 import '../domain/repositories.dart';
+import 'simulated_gps.dart';
 
 typedef SensitiveDataClearer = Future<void> Function();
 
@@ -34,7 +35,10 @@ final class AppDependencies {
     this.notifications = const NoopNotificationRepository(),
     this.assistant = const NoopAssistantRepository(),
     SensitiveDataRegistry? sensitiveData,
-  }) : sensitiveData = sensitiveData ?? SensitiveDataRegistry();
+    SimulatedLocationProvider? simulatedLocations,
+  }) : sensitiveData = sensitiveData ?? SensitiveDataRegistry(),
+       simulatedLocations =
+           simulatedLocations ?? simulatedLocationProviderFromEnvironment();
 
   final AuthenticationRepository authentication;
   final UserRepository users;
@@ -48,6 +52,10 @@ final class AppDependencies {
   final AssistantRepository assistant;
   final DataSourceKind dataSourceKind;
   final SensitiveDataRegistry sensitiveData;
+
+  /// Map-only demo locations. Disabled unless this build was compiled with
+  /// SMART_SAFETY_ENABLE_SIMULATED_GPS=true and a valid test coordinate.
+  final SimulatedLocationProvider simulatedLocations;
 
   factory AppDependencies.allMocks({
     String? initialUid,

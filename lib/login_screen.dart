@@ -85,9 +85,10 @@ class _LoginScreenState extends State<LoginScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AppPageHeader(
-              eyebrow: widget.role.accessLabel.toUpperCase(),
               title: 'Welcome back',
-              subtitle: 'Sign in to monitor your site',
+              compact: true,
+              subtitle:
+                  '${widget.role.accessLabel} access · Sign in to monitor your site',
               leading: HeaderIconButton(
                 icon: Icons.arrow_back_rounded,
                 tooltip: 'Back',
@@ -175,11 +176,14 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                             const SizedBox(height: AppSpacing.lg),
-                            AppCard(
-                              color: AppColors.surfaceSunken,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.md,
-                                vertical: AppSpacing.sm,
+                            Container(
+                              padding: const EdgeInsets.only(
+                                top: AppSpacing.md,
+                              ),
+                              decoration: const BoxDecoration(
+                                border: Border(
+                                  top: BorderSide(color: AppColors.border),
+                                ),
                               ),
                               child: Wrap(
                                 crossAxisAlignment: WrapCrossAlignment.center,
