@@ -47,11 +47,15 @@ class GpsMapPage extends StatefulWidget {
 class _GpsMapPageState extends State<GpsMapPage> {
   late final GpsMapViewModel _mapViewModel;
   late final MapAvailabilityController _mapAvailability;
+  bool _mobileListExpanded = true;
 
   @override
   void initState() {
     super.initState();
-    _mapViewModel = GpsMapViewModel(dashboard: widget.viewModel);
+    _mapViewModel = GpsMapViewModel(
+      dashboard: widget.viewModel,
+      simulatedLocations: widget.viewModel.dependencies.simulatedLocations,
+    );
     _mapAvailability = MapAvailabilityController(
       widget.mapsRuntime ?? createPlatformMapsRuntime(),
     );
@@ -78,64 +82,55 @@ class _GpsMapPageState extends State<GpsMapPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildMapHeader(),
-          _buildMapArea(),
           Expanded(
-            child: ColoredBox(
-              color: AppColors.canvas,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md,
-                  AppSpacing.md,
-                  AppSpacing.md,
-                  AppSpacing.xl,
-                ),
-                children: [
-                  SectionHeader(
-                    title: 'Worker Locations',
-                    trailing: _mapViewModel.items.isEmpty
-                        ? null
-                        : Text(
-                            '${_mapViewModel.positionedItems.length}/${_mapViewModel.items.length} with GPS',
-                            style: AppTypography.caption.copyWith(
-                              color: AppColors.textSecondary,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= kNavigationRailBreakpoint;
+                if (wide) {
+                  return ColoredBox(
+                    color: AppColors.canvas,
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(AppRadius.lg),
+                              child: _buildMapArea(
+                                height: constraints.maxHeight,
+                              ),
                             ),
                           ),
-                  ),
-                  if (_mapViewModel.isLoading)
-                    const Padding(
-                      padding: EdgeInsets.all(AppSpacing.lg),
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  else if (_mapViewModel.permissionDenied)
-                    const _MapMessage(
-                      icon: Icons.lock_outline,
-                      title: 'Location access denied',
-                      message:
-                          'Worker locations are unavailable for this account or assignment.',
-                    )
-                  else if (_mapViewModel.errorMessage != null)
-                    _MapMessage(
-                      icon: Icons.cloud_off_outlined,
-                      title: 'Location service unavailable',
-                      message: _mapViewModel.errorMessage!,
-                    )
-                  else if (_mapViewModel.items.isEmpty)
-                    const _MapMessage(
-                      icon: Icons.location_disabled_outlined,
-                      title: 'Nothing to track',
-                      message: 'No authorized active helmets are available.',
-                    )
-                  else
-                    for (final item in _mapViewModel.items)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: _LocationTile(
-                          item: item,
-                          onTap: () => _selectWorker(item),
+                          const SizedBox(width: AppSpacing.md),
+                          SizedBox(width: 360, child: _buildWorkerList()),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                return ColoredBox(
+                  color: AppColors.canvas,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        flex: _mobileListExpanded ? 5 : 9,
+                        child: _buildMapArea(height: double.infinity),
+                      ),
+                      _MobileListHandle(
+                        expanded: _mobileListExpanded,
+                        positioned: _mapViewModel.positionedItems.length,
+                        total: _mapViewModel.items.length,
+                        onTap: () => setState(
+                          () => _mobileListExpanded = !_mobileListExpanded,
                         ),
                       ),
-                ],
-              ),
+                      if (_mobileListExpanded)
+                        Expanded(flex: 4, child: _buildWorkerList()),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -144,11 +139,12 @@ class _GpsMapPageState extends State<GpsMapPage> {
   );
 
   Widget _buildMapHeader() => AppPageHeader(
-    eyebrow: 'GPS TRACKING',
     title: 'Worker Map',
+    compact: true,
     subtitle:
         '${_mapViewModel.items.length} helmets • '
-        '${_mapViewModel.positionedItems.length} positioned • '
+        '${_mapViewModel.positionedItems.length} positioned'
+        '${_mapViewModel.simulationActive ? ' (simulated GPS)' : ''} • '
         '${widget.viewModel.profile.organizationName ?? 'Site unassigned'} • '
         '${_mapViewModel.dataSourceLabel}',
     actions: [
@@ -160,7 +156,69 @@ class _GpsMapPageState extends State<GpsMapPage> {
     ],
   );
 
-  Widget _buildMapArea() {
+  Widget _buildWorkerList() => ListView(
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.md,
+      AppSpacing.sm,
+      AppSpacing.md,
+      AppSpacing.xl,
+    ),
+    children: [
+      if (_mapViewModel.simulationProblem != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          child: _MapMessage(
+            icon: Icons.warning_amber_rounded,
+            title: 'Simulated GPS not enabled',
+            message: _mapViewModel.simulationProblem!,
+          ),
+        )
+      else if (_mapViewModel.simulationActive)
+        const Padding(
+          padding: EdgeInsets.only(bottom: AppSpacing.sm),
+          child: _MapMessage(
+            icon: Icons.science_outlined,
+            title: 'Simulated GPS (demo location)',
+            message:
+                'No GPS module is fitted. Helmets without a real fix are '
+                'shown at a fixed demo location for presentation only. It '
+                'is not the worker\'s real position and is never stored.',
+          ),
+        ),
+      if (_mapViewModel.isLoading)
+        const Padding(
+          padding: EdgeInsets.all(AppSpacing.lg),
+          child: Center(child: CircularProgressIndicator()),
+        )
+      else if (_mapViewModel.permissionDenied)
+        const _MapMessage(
+          icon: Icons.lock_outline,
+          title: 'Location access denied',
+          message:
+              'Worker locations are unavailable for this account or assignment.',
+        )
+      else if (_mapViewModel.errorMessage != null)
+        _MapMessage(
+          icon: Icons.cloud_off_outlined,
+          title: 'Location service unavailable',
+          message: _mapViewModel.errorMessage!,
+        )
+      else if (_mapViewModel.items.isEmpty)
+        const _MapMessage(
+          icon: Icons.location_disabled_outlined,
+          title: 'Nothing to track',
+          message: 'No authorized active helmets are available.',
+        )
+      else
+        for (final item in _mapViewModel.items)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: _LocationTile(item: item, onTap: () => _selectWorker(item)),
+          ),
+    ],
+  );
+
+  Widget _buildMapArea({required double height}) {
     if (_mapViewModel.permissionDenied) {
       return const _MapPlaceholder(
         icon: Icons.lock_outline,
@@ -198,7 +256,7 @@ class _GpsMapPageState extends State<GpsMapPage> {
     }
     final builder = widget.mapBuilder ?? _defaultMapBuilder;
     return SizedBox(
-      height: 220,
+      height: height,
       width: double.infinity,
       child: Stack(
         children: [
@@ -230,6 +288,17 @@ class _GpsMapPageState extends State<GpsMapPage> {
             bottom: AppSpacing.sm,
             child: _MapSourceBadge(label: _mapViewModel.dataSourceLabel),
           ),
+          if (_mapViewModel.positionedItems.any(
+            (item) => item.isSimulatedLocation,
+          ))
+            const Positioned(
+              left: AppSpacing.sm,
+              bottom: AppSpacing.sm,
+              child: _MapSourceBadge(
+                key: Key('simulated-gps-badge'),
+                label: 'Simulated GPS — demo location',
+              ),
+            ),
         ],
       ),
     );
@@ -359,10 +428,8 @@ class _GpsMapPageState extends State<GpsMapPage> {
                   loading: widget.viewModel.isAcknowledging(
                     item.activeAlert!.alertId,
                   ),
-                  onPressed: () => _confirmAcknowledgement(
-                    sheetContext,
-                    item.activeAlert!,
-                  ),
+                  onPressed: () =>
+                      _confirmAcknowledgement(sheetContext, item.activeAlert!),
                 ),
               ],
             ] else
@@ -556,6 +623,69 @@ class _DevelopmentMapFallback extends StatelessWidget {
   }
 }
 
+class _MobileListHandle extends StatelessWidget {
+  const _MobileListHandle({
+    required this.expanded,
+    required this.positioned,
+    required this.total,
+    required this.onTap,
+  });
+
+  final bool expanded;
+  final int positioned;
+  final int total;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: AppColors.surface,
+    child: InkWell(
+      onTap: onTap,
+      child: Semantics(
+        button: true,
+        expanded: expanded,
+        label: expanded
+            ? 'Collapse worker locations'
+            : 'Expand worker locations',
+        child: Container(
+          constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          decoration: const BoxDecoration(
+            border: Border(
+              top: BorderSide(color: AppColors.border),
+              bottom: BorderSide(color: AppColors.border),
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.people_alt_outlined, size: AppSizes.iconMd),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  'Worker locations',
+                  style: AppTypography.bodyStrong,
+                ),
+              ),
+              Text(
+                '$positioned/$total with GPS',
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Icon(
+                expanded
+                    ? Icons.keyboard_arrow_down_rounded
+                    : Icons.keyboard_arrow_up_rounded,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _SchematicLocationPainter extends CustomPainter {
   const _SchematicLocationPainter({required this.items, required this.focus});
 
@@ -607,8 +737,16 @@ class _SchematicLocationPainter extends CustomPainter {
     for (var ring = 1; ring <= 3; ring++) {
       canvas.drawCircle(middle, maxRadius * ring / 3, gridPaint);
     }
-    canvas.drawLine(Offset(0, middle.dy), Offset(size.width, middle.dy), gridPaint);
-    canvas.drawLine(Offset(middle.dx, 0), Offset(middle.dx, size.height), gridPaint);
+    canvas.drawLine(
+      Offset(0, middle.dy),
+      Offset(size.width, middle.dy),
+      gridPaint,
+    );
+    canvas.drawLine(
+      Offset(middle.dx, 0),
+      Offset(middle.dx, size.height),
+      gridPaint,
+    );
 
     for (final item in items) {
       final center = project(item.location!);
@@ -682,6 +820,7 @@ class _RealMapSurface extends StatefulWidget {
 class _RealMapSurfaceState extends State<_RealMapSurface> {
   GoogleMapController? _controller;
   final Map<HelmetMapState, BitmapDescriptor> _icons = {};
+  final Map<HelmetMapState, BitmapDescriptor> _simulatedIcons = {};
 
   @override
   void initState() {
@@ -701,6 +840,7 @@ class _RealMapSurfaceState extends State<_RealMapSurface> {
   Future<void> _loadIcons() async {
     for (final state in HelmetMapState.values) {
       _icons[state] = await _createMarkerIcon(state);
+      _simulatedIcons[state] = await _createMarkerIcon(state, simulated: true);
     }
     if (mounted) setState(() {});
   }
@@ -753,13 +893,17 @@ class _RealMapSurfaceState extends State<_RealMapSurface> {
             item.location!.latitudeDegrees,
             item.location!.longitudeDegrees,
           ),
-          icon: _icons[item.markerState] ?? BitmapDescriptor.defaultMarker,
+          icon:
+              (item.isSimulatedLocation ? _simulatedIcons : _icons)[item
+                  .markerState] ??
+              BitmapDescriptor.defaultMarker,
           anchor: const Offset(0.5, 0.5),
           infoWindow: InfoWindow(
             title:
                 '${helmetMapStateSymbol(item.markerState)} ${item.workerName} • ${helmetMapStateLabel(item.markerState)}',
             snippet:
-                'Helmet ${item.helmet.helmetId}${item.isLastKnown ? ' • Last Known' : ''}',
+                'Helmet ${item.helmet.helmetId}${item.isLastKnown ? ' • Last Known' : ''}'
+                '${item.isSimulatedLocation ? ' • Simulated GPS (demo location)' : ''}',
           ),
           onTap: () => widget.onSelected(item),
         ),
@@ -797,14 +941,17 @@ class _RealMapSurfaceState extends State<_RealMapSurface> {
   }
 }
 
-Future<BitmapDescriptor> _createMarkerIcon(HelmetMapState state) async {
-  const width = 180.0;
+Future<BitmapDescriptor> _createMarkerIcon(
+  HelmetMapState state, {
+  bool simulated = false,
+}) async {
+  final width = simulated ? 280.0 : 180.0;
   const height = 58.0;
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
   final color = _stateColor(state);
   final rect = RRect.fromRectAndRadius(
-    const Rect.fromLTWH(2, 2, width - 4, height - 4),
+    Rect.fromLTWH(2, 2, width - 4, height - 4),
     const Radius.circular(22),
   );
   canvas.drawRRect(rect, Paint()..color = color);
@@ -817,7 +964,9 @@ Future<BitmapDescriptor> _createMarkerIcon(HelmetMapState state) async {
   );
   final painter = TextPainter(
     text: TextSpan(
-      text: '${helmetMapStateSymbol(state)}  ${helmetMapStateLabel(state)}',
+      text:
+          '${simulated ? 'DEMO  ' : ''}'
+          '${helmetMapStateSymbol(state)}  ${helmetMapStateLabel(state)}',
       style: const TextStyle(
         color: AppColors.onPrimary,
         fontSize: 22,
@@ -838,7 +987,7 @@ Future<BitmapDescriptor> _createMarkerIcon(HelmetMapState state) async {
   final data = await image.toByteData(format: ui.ImageByteFormat.png);
   return BitmapDescriptor.bytes(
     data!.buffer.asUint8List(),
-    width: 90,
+    width: width / 2,
     height: 29,
   );
 }
@@ -846,6 +995,9 @@ Future<BitmapDescriptor> _createMarkerIcon(HelmetMapState state) async {
 String _gpsDescription(HelmetMapItem item) {
   final location = item.location;
   if (location == null) return helmetMapStateLabel(item.markerState);
+  if (item.isSimulatedLocation) {
+    return 'Simulated GPS • demo location, not from helmet hardware';
+  }
   final prefix = location.isLastKnown ? 'Last Known • ' : 'Valid fix • ';
   return '$prefix${formatRelativeTime(location.capturedAt)}';
 }
@@ -877,8 +1029,10 @@ class _StatePill extends StatelessWidget {
   final HelmetMapState state;
 
   @override
-  Widget build(BuildContext context) =>
-      StatusChip(status: _stateStatus(state), label: helmetMapStateLabel(state));
+  Widget build(BuildContext context) => StatusChip(
+    status: _stateStatus(state),
+    label: helmetMapStateLabel(state),
+  );
 }
 
 class _LocationTile extends StatelessWidget {
@@ -913,7 +1067,8 @@ class _LocationTile extends StatelessWidget {
                 Text(
                   item.location == null
                       ? 'Coordinates unavailable • ${item.helmet.zone ?? 'Zone unavailable'}'
-                      : '${formatCoordinates(item.location)} • ${item.helmet.zone ?? 'Zone unavailable'}',
+                      : '${item.isSimulatedLocation ? 'Demo location ' : ''}'
+                            '${formatCoordinates(item.location)} • ${item.helmet.zone ?? 'Zone unavailable'}',
                   style: AppTypography.caption.copyWith(
                     color: AppColors.textSecondary,
                     fontFeatures: const [FontFeature.tabularFigures()],
@@ -941,7 +1096,10 @@ class _LocationTile extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
+          const Icon(
+            Icons.chevron_right_rounded,
+            color: AppColors.textSecondary,
+          ),
         ],
       ),
     );
@@ -1027,7 +1185,8 @@ class _MapPlaceholder extends StatelessWidget {
               alignment: WrapAlignment.center,
               runSpacing: AppSpacing.sm,
               children: [
-                for (final item in unpositioned) _UnpositionedMarker(item: item),
+                for (final item in unpositioned)
+                  _UnpositionedMarker(item: item),
               ],
             ),
           ],
@@ -1081,7 +1240,7 @@ class _MapMessage extends StatelessWidget {
 }
 
 class _MapSourceBadge extends StatelessWidget {
-  const _MapSourceBadge({required this.label});
+  const _MapSourceBadge({super.key, required this.label});
 
   final String label;
 

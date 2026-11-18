@@ -6,7 +6,7 @@
     "node": "22"
   },
   "scripts": {
-    "test": "node --test test/api_adapter.test.js test/lambda_inference_client.test.js test/runtime_import.test.js"
+    "test": "node --test test/api_adapter.test.js test/assessment_alert_adapter.test.js test/lambda_inference_client.test.js test/runtime_import.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-lambda": "3.1164.0",

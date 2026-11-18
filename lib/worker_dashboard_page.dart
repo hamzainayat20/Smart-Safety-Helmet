@@ -43,7 +43,6 @@ class WorkerDashboardPage extends StatelessWidget {
   );
 
   Widget _header() => AppPageHeader(
-    eyebrow: 'WELCOME BACK',
     title: viewModel.profile.displayName,
     titleSuffix: const RoleTag(label: 'Worker'),
     subtitle: 'Site: ${viewModel.profile.organizationName ?? 'Not assigned'}',
@@ -110,62 +109,62 @@ class WorkerDashboardPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-        _StatusBand(
-          status: safetyStatusForMonitoringState(monitoringState),
-          icon: monitoringStateIcon(monitoringState),
-          title: helmet == null
-              ? 'No helmet assigned'
-              : 'Status: ${viewModel.stateLabelFor(helmet).toUpperCase()}',
-          description: helmet == null
-              ? 'Contact your supervisor for an assignment.'
-              : monitoringStateDescription(monitoringState),
-          // Only approved, backend-issued recommendations; never shown for a
-          // reading that is no longer live.
-          action: notLive ? null : assessment?.recommendations.firstOrNull,
-          footnote: helmet == null
-              ? null
-              : lastUpdate == null
-              ? 'No update has been received'
-              : 'Last update ${formatRelativeTime(lastUpdate)} • ${viewModel.dataSourceLabel}',
-          facts: helmet == null
-              ? const []
-              : [
-                  'Helmet ${helmet.helmetId}',
-                  reading == null
-                      ? 'Link unknown'
-                      : 'Link ${_connectivityLabel(reading.connectivity)}',
-                  reading == null
-                      ? 'GPS unknown'
-                      : 'GPS ${_gpsLabel(reading.gpsStatus)}',
-                ],
-        ),
-        if (helmet != null) ...[
-          const SizedBox(height: AppSpacing.md),
-          SafetyAssessmentCard(
-            reading: reading,
-            assessment: assessment,
-            compact: true,
+          _StatusBand(
+            status: safetyStatusForMonitoringState(monitoringState),
+            icon: monitoringStateIcon(monitoringState),
+            title: helmet == null
+                ? 'No helmet assigned'
+                : viewModel.stateLabelFor(helmet),
+            description: helmet == null
+                ? 'Contact your supervisor for an assignment.'
+                : monitoringStateDescription(monitoringState),
+            // Only approved, backend-issued recommendations; never shown for a
+            // reading that is no longer live.
+            action: notLive ? null : assessment?.recommendations.firstOrNull,
+            footnote: helmet == null
+                ? null
+                : lastUpdate == null
+                ? 'No update has been received'
+                : 'Last update ${formatRelativeTime(lastUpdate)} • ${viewModel.dataSourceLabel}',
+            facts: helmet == null
+                ? const []
+                : [
+                    'Helmet ${helmet.helmetId}',
+                    reading == null
+                        ? 'Link unknown'
+                        : 'Link ${_connectivityLabel(reading.connectivity)}',
+                    reading == null
+                        ? 'GPS unknown'
+                        : 'GPS ${_gpsLabel(reading.gpsStatus)}',
+                  ],
           ),
-          const SizedBox(height: AppSpacing.lg),
-          HelmetLimitsBuilder(
-            viewModel: viewModel,
-            helmetId: helmet.helmetId,
-            builder: (context, limits) => HelmetHistoryBuilder(
+          if (helmet != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            SafetyAssessmentCard(
+              reading: reading,
+              assessment: assessment,
+              compact: true,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            HelmetLimitsBuilder(
               viewModel: viewModel,
               helmetId: helmet.helmetId,
-              builder: (context, history) => Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SectionHeader(
-                    title: 'Your Helmet Status • ${helmet.helmetId}',
-                    subtitle: limits.sourceLabel,
-                  ),
-                  ..._readings(reading, notLive, limits, history),
-                ],
+              builder: (context, limits) => HelmetHistoryBuilder(
+                viewModel: viewModel,
+                helmetId: helmet.helmetId,
+                builder: (context, history) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SectionHeader(
+                      title: 'Your Helmet Status • ${helmet.helmetId}',
+                      subtitle: limits.sourceLabel,
+                    ),
+                    ..._readings(reading, notLive, limits, history),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
         ],
       ),
     );
@@ -415,8 +414,8 @@ class _StatusBand extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'WHAT TO DO NOW',
-                          style: AppTypography.overline.copyWith(
+                          'Recommended action',
+                          style: AppTypography.label.copyWith(
                             color: AppColors.textSecondary,
                           ),
                         ),

@@ -107,7 +107,7 @@ final class MockDataSet {
       'site-main': Site(
         siteId: 'site-main',
         name: 'Main Site',
-        organizationName: 'SafeHelmet Demo',
+        organizationName: 'Smart Safety Demo',
         zones: const ['Zone A', 'Zone B', 'Zone C', 'Zone D'],
         active: true,
         updatedAt: now,

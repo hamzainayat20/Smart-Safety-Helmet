@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../design_system/app_tokens.dart';
+import '../design_system/motion.dart';
 import '../design_system/safety_status.dart';
 
 /// Labelled text field used by the authentication forms.
@@ -96,12 +97,19 @@ class ResultBanner extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  succeeded
-                      ? Icons.check_circle_outline_rounded
-                      : Icons.error_outline_rounded,
-                  size: AppSizes.iconMd,
-                  color: palette.text,
+                TweenAnimationBuilder<double>(
+                  duration: AppMotion.of(context, AppMotion.standard),
+                  curve: AppMotion.enter,
+                  tween: Tween(begin: succeeded ? 0.9 : 1, end: 1),
+                  builder: (context, scale, child) =>
+                      Transform.scale(scale: scale, child: child),
+                  child: Icon(
+                    succeeded
+                        ? Icons.check_circle_outline_rounded
+                        : Icons.error_outline_rounded,
+                    size: AppSizes.iconMd,
+                    color: palette.text,
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(

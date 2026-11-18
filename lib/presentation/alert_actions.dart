@@ -35,7 +35,17 @@ Future<void> confirmAndAcknowledgeAlert(
     if (context.mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Alert acknowledged.')));
+      ).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Alert acknowledged.'),
+            ],
+          ),
+        ),
+      );
     }
   } catch (error) {
     if (context.mounted) {

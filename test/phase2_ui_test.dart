@@ -185,6 +185,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('More').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Helmets').last);
     await tester.pumpAndSettle();
     expect(find.text('Helmet H-02'), findsOneWidget);

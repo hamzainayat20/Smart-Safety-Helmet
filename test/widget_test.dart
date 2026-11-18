@@ -37,11 +37,16 @@ void main() {
     // The redesigned dashboard keeps worker status below the urgent summary.
     // Scroll the lazy list before asserting content that starts off-screen.
     await tester.scrollUntilVisible(
-      find.text('Worker Status'),
+      find.text('Worker status'),
       300,
       scrollable: find.byType(Scrollable).last,
     );
-    expect(find.text('Worker Status'), findsOneWidget);
+    expect(find.text('Worker status'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Zain Ahmed'),
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('Zain Ahmed'), findsOneWidget);
   });
 
@@ -58,7 +63,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Status: SAFE'), findsOneWidget);
+    expect(find.text('Safe'), findsOneWidget);
     expect(find.textContaining('Your Helmet Status • H-03'), findsOneWidget);
     expect(find.text('87 %'), findsOneWidget);
   });
@@ -117,7 +122,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Status: STALE'), findsOneWidget);
+    expect(find.text('Stale'), findsWidgets);
     expect(
       find.textContaining(
         'Values are last known and are not being presented as live',

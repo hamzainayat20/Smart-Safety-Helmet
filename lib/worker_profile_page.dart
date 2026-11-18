@@ -33,8 +33,8 @@ class WorkerProfilePage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               AppPageHeader(
-                eyebrow: 'MY PROFILE',
                 title: profile.displayName,
+                compact: true,
                 titleSuffix: const RoleTag(label: 'Worker'),
                 subtitle: 'Worker • $site',
                 leading: InitialsAvatar(

@@ -32,9 +32,7 @@ class _WorkerAlertsPageState extends State<WorkerAlertsPage> {
           .length;
       final now = DateTime.now().toUtc();
       final today = viewModel.alerts
-          .where(
-            (alert) => now.difference(alert.serverReceivedAt).inHours < 24,
-          )
+          .where((alert) => now.difference(alert.serverReceivedAt).inHours < 24)
           .length;
       return Scaffold(
         backgroundColor: AppColors.ink,
@@ -44,8 +42,8 @@ class _WorkerAlertsPageState extends State<WorkerAlertsPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               AppPageHeader(
-                eyebrow: 'INCIDENTS',
                 title: 'My Alerts',
+                compact: true,
                 subtitle:
                     '${viewModel.helmets.firstOrNull?.helmetId ?? 'No helmet'} • '
                     '${viewModel.profile.displayName} • ${viewModel.dataSourceLabel}',
@@ -214,10 +212,7 @@ class _WorkerAlertCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          StatusChip(
-            status: status,
-            label: resolved ? 'Closed' : status.label,
-          ),
+          StatusChip(status: status, label: resolved ? 'Closed' : status.label),
           const SizedBox(height: AppSpacing.sm),
           Text(
             detail,
@@ -228,7 +223,10 @@ class _WorkerAlertCard extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               onPressed: onOpen,
-              icon: const Icon(Icons.open_in_new_rounded, size: AppSizes.iconMd),
+              icon: const Icon(
+                Icons.open_in_new_rounded,
+                size: AppSizes.iconMd,
+              ),
               label: const Text('View details'),
             ),
           ),

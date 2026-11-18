@@ -77,7 +77,7 @@ class _FirebaseInitializationFailureApp extends StatelessWidget {
       icon: Icons.cloud_off_outlined,
       title: 'Firebase unavailable',
       message:
-          'SafeHelmet Pro could not initialize the live backend. '
+          'Smart Safety could not initialize the live backend. '
           'Check the Firebase configuration and network, then restart the app.',
     ),
   );
@@ -300,7 +300,7 @@ class _MyAppState extends State<MyApp> {
       navigatorKey: _navigatorKey,
       scaffoldMessengerKey: _messengerKey,
       debugShowCheckedModeBanner: false,
-      title: 'SafeHelmet Pro',
+      title: 'Smart Safety',
       theme: buildAppTheme(),
       builder: (context, child) => Listener(
         behavior: HitTestBehavior.translucent,

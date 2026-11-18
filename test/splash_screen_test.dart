@@ -25,8 +25,7 @@ void main() {
     await tester.pumpWidget(app());
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('SafeHelmet'), findsOneWidget);
-    expect(find.text('PRO'), findsOneWidget);
+    expect(find.text('Smart Safety'), findsOneWidget);
     expect(find.text('Environment'), findsOneWidget);
     expect(find.text('Location'), findsOneWidget);
     expect(find.text('AI risk'), findsOneWidget);
@@ -67,7 +66,7 @@ void main() {
     );
     await tester.pump();
     expect(tester.hasRunningAnimations, isFalse);
-    expect(find.text('SafeHelmet'), findsOneWidget);
+    expect(find.text('Smart Safety'), findsOneWidget);
   });
 
   for (final size in const [Size(320, 568), Size(640, 360), Size(1280, 800)]) {

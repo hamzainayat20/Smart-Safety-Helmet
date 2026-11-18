@@ -1,3 +1,4 @@
+import { createAlertFromAssessment } from '../../functions/src/assessment_alerts.js';
 import { createAssessmentProcessor } from '../../functions/src/assessment_pipeline.js';
 import { createTelemetryIngestionHandler } from '../../functions/src/telemetry_ingestion.js';
 
@@ -41,6 +42,7 @@ export function createAwsTelemetryHandler({
   secretRegistryValue,
   inferenceClient,
   clock = () => Date.now(),
+  alertWriter = createAlertFromAssessment,
 }) {
   const ingest = createTelemetryIngestionHandler({
     database,
@@ -70,6 +72,15 @@ export function createAwsTelemetryHandler({
     try {
       const result = await assess(source);
       assessmentStatus = result.status;
+      if (result.status === 'completed' && result.assessment) {
+        try {
+          // In-app alert record only (no push notification). A failure here
+          // never changes the telemetry or assessment outcome.
+          await alertWriter({ database, assessment: result.assessment, reading: source, clock });
+        } catch {
+          // Alert creation is best-effort and must not affect the device.
+        }
+      }
     } catch {
       // Telemetry has been safely stored. Reporting an assessment failure lets
       // the device retry the same immutable event with a fresh nonce.

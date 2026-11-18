@@ -11,7 +11,10 @@ abstract final class AppMotion {
   static const Duration standard = Duration(milliseconds: 240);
 
   /// Fade-out of the "value just changed" highlight.
-  static const Duration highlight = Duration(milliseconds: 900);
+  static const Duration highlight = Duration(milliseconds: 480);
+
+  /// A single, bounded emphasis for a newly received critical condition.
+  static const Duration attention = Duration(milliseconds: 420);
 
   static const Curve enter = Curves.easeOutCubic;
   static const Curve exit = Curves.easeInCubic;

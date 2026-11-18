@@ -4,6 +4,7 @@ import 'application/dashboard_view_model.dart';
 import 'domain/models.dart';
 import 'domain/repositories.dart';
 import 'presentation/design_system/design_system.dart';
+import 'presentation/formatters.dart';
 
 class SafetyAssistantPage extends StatefulWidget {
   const SafetyAssistantPage({
@@ -86,9 +87,9 @@ class _SafetyAssistantPageState extends State<SafetyAssistantPage> {
       return Column(
         children: [
           AppPageHeader(
-            eyebrow: 'DECISION SUPPORT',
             title: 'Safety Assistant',
             subtitle: 'Ask about verified readings and model assessments',
+            compact: true,
             actions: [
               HeaderIconButton(
                 icon: Icons.logout_rounded,
@@ -175,19 +176,28 @@ class _SafetyAssistantPageState extends State<SafetyAssistantPage> {
                             ],
                           ),
                         ),
-                        if (_error != null) ...[
-                          const SizedBox(height: AppSpacing.md),
-                          StateView(
-                            kind: StateViewKind.error,
-                            title: 'Assistant unavailable',
-                            message: _error!,
-                            onAction: _ask,
-                          ),
-                        ],
-                        if (_reply != null) ...[
-                          const SizedBox(height: AppSpacing.md),
-                          _AssistantAnswer(reply: _reply!),
-                        ],
+                        const SizedBox(height: AppSpacing.md),
+                        AnimatedSwitcher(
+                          duration: AppMotion.of(context, AppMotion.standard),
+                          switchInCurve: AppMotion.enter,
+                          switchOutCurve: AppMotion.exit,
+                          child: _error != null
+                              ? StateView(
+                                  key: const ValueKey('assistant-error'),
+                                  kind: StateViewKind.error,
+                                  title: 'Assistant unavailable',
+                                  message: _error!,
+                                  onAction: _ask,
+                                )
+                              : _reply != null
+                              ? _AssistantAnswer(
+                                  key: ValueKey(_reply!.generatedAt),
+                                  reply: _reply!,
+                                )
+                              : const SizedBox.shrink(
+                                  key: ValueKey('assistant-empty'),
+                                ),
+                        ),
                       ],
                     ),
             ),
@@ -245,7 +255,7 @@ class _ContextCard extends StatelessWidget {
 }
 
 class _AssistantAnswer extends StatelessWidget {
-  const _AssistantAnswer({required this.reply});
+  const _AssistantAnswer({super.key, required this.reply});
 
   final AssistantReply reply;
 
@@ -264,9 +274,11 @@ class _AssistantAnswer extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        SelectableText(
-          reply.answer.replaceAll('**', ''),
-          style: AppTypography.body.copyWith(height: 1.55),
+        _StructuredAssistantText(answer: reply.answer),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Generated ${formatRelativeTime(reply.generatedAt)} · Event ${reply.sourceEventId}',
+          style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.md),
         Container(
@@ -286,4 +298,62 @@ class _AssistantAnswer extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _StructuredAssistantText extends StatelessWidget {
+  const _StructuredAssistantText({required this.answer});
+
+  final String answer;
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = answer.replaceAll('\r\n', '\n').split('\n');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [for (final rawLine in lines) _line(rawLine.trim())],
+    );
+  }
+
+  Widget _line(String line) {
+    if (line.isEmpty) return const SizedBox(height: AppSpacing.sm);
+    final boldHeading = line.startsWith('**') && line.endsWith('**');
+    final markdownHeading = line.startsWith('#');
+    if (boldHeading || markdownHeading) {
+      final text = line.replaceAll(RegExp(r'^#+\s*|\*\*'), '');
+      return Padding(
+        padding: const EdgeInsets.only(
+          top: AppSpacing.sm,
+          bottom: AppSpacing.xs,
+        ),
+        child: SelectableText(text, style: AppTypography.bodyStrong),
+      );
+    }
+    final isBullet = line.startsWith('- ') || line.startsWith('• ');
+    final text = line.replaceFirst(RegExp(r'^[-•]\s+'), '');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isBullet) ...[
+            const Padding(
+              padding: EdgeInsets.only(top: 9),
+              child: Icon(
+                Icons.circle,
+                size: 5,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+          ],
+          Expanded(
+            child: SelectableText(
+              text.replaceAll('**', ''),
+              style: AppTypography.body.copyWith(height: 1.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

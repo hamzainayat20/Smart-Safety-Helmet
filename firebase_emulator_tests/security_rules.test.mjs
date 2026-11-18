@@ -31,14 +31,12 @@ const verified = (role) => ({ email_verified: true, role });
 before(async () => {
   environment = await initializeTestEnvironment({
     projectId,
+    // Host and port are discovered from the emulator started by
+    // `firebase emulators:exec` (firebase.rules-test.json), not hard-coded.
     database: {
-      host: '127.0.0.1',
-      port: 9000,
       rules: readFileSync('database.rules.json', 'utf8'),
     },
     firestore: {
-      host: '127.0.0.1',
-      port: 8080,
       rules: readFileSync('firestore.rules', 'utf8'),
     },
   });

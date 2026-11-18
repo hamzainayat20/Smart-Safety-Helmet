@@ -103,11 +103,11 @@ class SensorDetailScreen extends StatelessWidget {
     SensorReading? reading,
     MonitoringState state,
   ) => AppPageHeader(
-    eyebrow: '$helmetId • $workerName'.toUpperCase(),
     title: 'Sensor Data',
+    compact: true,
     subtitle: reading == null
         ? viewModel.dataSourceLabel
-        : 'Received ${formatRelativeTime(reading.serverReceivedAt)} • ${viewModel.dataSourceLabel}',
+        : '$helmetId · $workerName · Received ${formatRelativeTime(reading.serverReceivedAt)} · ${viewModel.dataSourceLabel}',
     leading: HeaderIconButton(
       icon: Icons.arrow_back_rounded,
       tooltip: 'Back',
@@ -304,7 +304,6 @@ class SensorDetailScreen extends StatelessWidget {
           viewModel.hasActiveAlert(helmetId, AlertType.fall),
         ),
         const SizedBox(height: AppSpacing.lg),
-        const SectionHeader(title: 'Device diagnostics'),
         LiveSensorDiagnostics(
           reading: reading,
           assessment: assessment,

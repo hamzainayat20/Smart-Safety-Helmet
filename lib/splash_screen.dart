@@ -123,12 +123,7 @@ class _SplashScreenState extends State<SplashScreen>
             ),
           ),
         ),
-        const Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: _HazardStripe(),
-        ),
+        const Positioned(left: 0, right: 0, bottom: 0, child: _HazardStripe()),
       ],
     ),
   );
@@ -150,10 +145,9 @@ class _SplashScreenState extends State<SplashScreen>
           runSpacing: AppSpacing.sm,
           children: [
             Text(
-              'SafeHelmet',
+              'Smart Safety',
               style: AppTypography.display.copyWith(color: AppColors.onInk),
             ),
-            const _ProTag(),
           ],
         ),
       ),
@@ -166,10 +160,7 @@ class _SplashScreenState extends State<SplashScreen>
         ),
       ),
       const Spacer(flex: 4),
-      _Reveal(
-        animation: _interval(0.4, 0.85),
-        child: const _CapabilityStrip(),
-      ),
+      _Reveal(animation: _interval(0.4, 0.85), child: const _CapabilityStrip()),
       const SizedBox(height: AppSpacing.lg),
       _Reveal(
         animation: _interval(0.5, 1),
@@ -281,27 +272,6 @@ class _SignalRingsPainter extends CustomPainter {
       oldDelegate.progress != progress;
 }
 
-/// High-contrast product-tier tag on hi-vis yellow.
-class _ProTag extends StatelessWidget {
-  const _ProTag();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.sm,
-      vertical: AppSpacing.xs,
-    ),
-    decoration: BoxDecoration(
-      color: AppColors.brand,
-      borderRadius: BorderRadius.circular(AppRadius.sm),
-    ),
-    child: Text(
-      'PRO',
-      style: AppTypography.overline.copyWith(color: AppColors.ink),
-    ),
-  );
-}
-
 /// What the system monitors, as one bordered strip with hairline dividers.
 class _CapabilityStrip extends StatelessWidget {
   const _CapabilityStrip();
@@ -347,9 +317,7 @@ class _CapabilityStrip extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
-                    style: AppTypography.label.copyWith(
-                      color: AppColors.onInk,
-                    ),
+                    style: AppTypography.label.copyWith(color: AppColors.onInk),
                   ),
                 ],
               ),
