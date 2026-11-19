@@ -379,3 +379,24 @@ export const removeFcmToken = onCall(async (request) => {
     throw callableError(error);
   }
 });
+
+// Push notification: fires once when AWS writes a new alert, and reuses
+// deliverAlert() to send FCM to the site's authorized supervisors.
+export const pushAlertOnCreate = onValueCreated(
+  {
+    ref: '/alerts/{alertId}',
+    region: 'us-central1',
+    timeoutSeconds: 30,
+    memory: '256MiB',
+    maxInstances: 5,
+  },
+  async (event) => {
+    const alert = event.data.val();
+    if (!alert || alert.status !== 'created') return;
+    try {
+      await deliverAlert({ ...alert, alertId: alert.alertId ?? event.params.alertId });
+    } catch (error) {
+      logger.error('Push delivery failed', { alertId: event.params.alertId, code: error?.code });
+    }
+  },
+);
