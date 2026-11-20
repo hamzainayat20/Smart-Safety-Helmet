@@ -3,6 +3,7 @@
     ".read": false,
     ".write": false,
     "users": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && auth.token.role == 'administrator'",
       "$uid": {
         ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && (auth.uid == $uid || auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && data.child('authorizedSupervisorIds').child(auth.uid).val() == true))",
         ".write": "auth != null && auth.uid == $uid && ((!data.exists() && newData.child('uid').val() == auth.uid && newData.child('email').val() == auth.token.email && newData.child('role').val() == 'worker' && newData.child('active').val() == true && !newData.child('siteIds').exists() && !newData.child('authorizedHelmetIds').exists() && !newData.child('authorizedSupervisorIds').exists() && !newData.child('fcmTokenRefs').exists()) || (data.exists() && root.child('users').child(auth.uid).child('active').val() == true && newData.child('schemaVersion').val() == data.child('schemaVersion').val() && newData.child('uid').val() == data.child('uid').val() && newData.child('name').val() == data.child('name').val() && newData.child('email').val() == data.child('email').val() && newData.child('role').val() == data.child('role').val() && newData.child('active').val() == data.child('active').val() && newData.child('organizationName').val() == data.child('organizationName').val() && newData.child('siteIds').val() == data.child('siteIds').val() && newData.child('authorizedHelmetIds').val() == data.child('authorizedHelmetIds').val() && newData.child('authorizedSupervisorIds').val() == data.child('authorizedSupervisorIds').val() && newData.child('fcmTokenRefs').val() == data.child('fcmTokenRefs').val()))",
@@ -25,12 +26,14 @@
       }
     },
     "sites": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && auth.token.role == 'administrator'",
       "$siteId": {
         ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && root.child('users').child(auth.uid).child('siteIds').child($siteId).val() == true && data.child('supervisors').child(auth.uid).val() == true))",
         ".write": false
       }
     },
     "helmets": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && auth.token.role == 'administrator'",
       "$helmetId": {
         "meta": {
           ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && root.child('users').child(auth.uid).child('siteIds').child(data.child('siteId').val()).val() == true && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true) || ((auth.token.role == 'worker' || root.child('users').child(auth.uid).child('role').val() == 'worker') && data.child('assignedWorkerId').val() == auth.uid && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true))",
@@ -62,7 +65,7 @@
       }
     },
     "alerts": {
-      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && query.orderByChild == 'helmetId' && query.equalTo != null && query.limitToLast != null && query.limitToLast <= 100 && (auth.token.role == 'administrator' || root.child('users').child(auth.uid).child('authorizedHelmetIds').child(query.equalTo).val() == true)",
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && ((query.orderByChild == 'helmetId' && query.equalTo != null && query.limitToLast != null && query.limitToLast <= 100 && (auth.token.role == 'administrator' || root.child('users').child(auth.uid).child('authorizedHelmetIds').child(query.equalTo).val() == true)) || (auth.token.role == 'administrator' && query.orderByChild == 'serverReceivedAt' && query.limitToLast != null && query.limitToLast <= 500))",
       ".indexOn": ["helmetId", "siteId", "alertType", "status", "serverReceivedAt"],
       "$alertId": {
         ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && root.child('users').child(auth.uid).child('siteIds').child(data.child('siteId').val()).val() == true && root.child('users').child(auth.uid).child('authorizedHelmetIds').child(data.child('helmetId').val()).val() == true) || ((auth.token.role == 'worker' || root.child('users').child(auth.uid).child('role').val() == 'worker') && data.child('workerId').val() == auth.uid && root.child('users').child(auth.uid).child('authorizedHelmetIds').child(data.child('helmetId').val()).val() == true))",
@@ -114,6 +117,14 @@
       ".write": false
     },
     "notificationTokenOwners": {
+      ".read": false,
+      ".write": false
+    },
+    "adminAudit": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && auth.token.role == 'administrator'",
+      ".write": false
+    },
+    "deviceSecrets": {
       ".read": false,
       ".write": false
     }

@@ -1,4 +1,5 @@
 import { getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { getDatabase } from 'firebase-admin/database';
 import { getMessaging } from 'firebase-admin/messaging';
 import { logger } from 'firebase-functions';
@@ -30,10 +31,15 @@ import {
   createAssessmentProcessor,
 } from './src/assessment_pipeline.js';
 import { createInferenceClient } from './src/inference_client.js';
+import {
+  AdminValidationError,
+  createAdminService,
+} from './src/admin_service.js';
 
 if (getApps().length === 0) initializeApp();
 
 const database = getDatabase();
+const auth = getAuth();
 const messaging = getMessaging();
 const helmetDeviceSecrets = defineSecret('HELMET_DEVICE_SECRETS');
 const inferenceServiceUrl = defineString('INFERENCE_SERVICE_URL');
@@ -54,6 +60,11 @@ const inferenceClient = createInferenceClient({
 const assessmentProcessor = createAssessmentProcessor({
   database,
   inferenceClient,
+});
+const adminService = createAdminService({
+  database,
+  auth,
+  now: () => Date.now(),
 });
 
 export const ingestTelemetry = onRequest(
@@ -89,7 +100,7 @@ export const assessTelemetry = onValueCreated(
 
 function callableError(error) {
   if (error instanceof HttpsError) return error;
-  if (error instanceof AlertValidationError) {
+  if (error instanceof AlertValidationError || error instanceof AdminValidationError) {
     return new HttpsError(error.code, error.message);
   }
   logger.error('Alert operation failed', {
@@ -380,23 +391,132 @@ export const removeFcmToken = onCall(async (request) => {
   }
 });
 
-// Push notification: fires once when AWS writes a new alert, and reuses
-// deliverAlert() to send FCM to the site's authorized supervisors.
-export const pushAlertOnCreate = onValueCreated(
-  {
-    ref: '/alerts/{alertId}',
-    region: 'us-central1',
-    timeoutSeconds: 30,
-    memory: '256MiB',
-    maxInstances: 5,
-  },
-  async (event) => {
-    const alert = event.data.val();
-    if (!alert || alert.status !== 'created') return;
-    try {
-      await deliverAlert({ ...alert, alertId: alert.alertId ?? event.params.alertId });
-    } catch (error) {
-      logger.error('Push delivery failed', { alertId: event.params.alertId, code: error?.code });
-    }
-  },
-);
+// ---------------------------------------------------------------------------
+// Admin Console (module M15) — thin administrator-only wrappers around
+// createAdminService. Every operation is audited inside the service.
+
+export const adminCreateUser = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.createUser(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});
+
+export const adminSetUserRole = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.setUserRole(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});
+
+export const adminSetUserActive = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.setUserActive(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});
+
+export const adminUpdateUserProfile = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.updateUserProfile(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});
+
+export const adminUpdateUserAssignments = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.updateUserAssignments(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});
+
+export const adminDeleteUser = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.deleteUser(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});
+
+export const adminRegisterHelmet = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.registerHelmet(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});
+
+export const adminAssignHelmet = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.assignHelmet(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});
+
+export const adminSetHelmetSite = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.setHelmetSite(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});
+
+export const adminRetireHelmet = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.retireHelmet(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});
+
+export const adminRotateHelmetSecret = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.rotateHelmetSecret(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});
+
+export const adminUpsertSite = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.upsertSite(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});
+
+export const adminSetSiteSupervisors = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.setSiteSupervisors(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});
+
+export const adminSetHelmetThresholds = onCall(async (request) => {
+  try {
+    const actor = await requireActiveUser(request, ['administrator']);
+    return await adminService.setHelmetThresholds(actor, request.data ?? {});
+  } catch (error) {
+    throw callableError(error);
+  }
+});

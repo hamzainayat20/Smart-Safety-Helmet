@@ -28,6 +28,24 @@ final class MockDataSet {
     DateTime ago(Duration duration) => now.subtract(duration);
 
     final users = <String, UserProfile>{
+      'admin-demo': UserProfile(
+        uid: 'admin-demo',
+        displayName: 'Demo Administrator',
+        email: 'admin@example.test',
+        role: UserRole.administrator,
+        active: true,
+        organizationName: 'Smart Safety Demo',
+        siteIds: const ['site-main'],
+        authorizedHelmetIds: const [
+          'H-02',
+          'H-03',
+          'H-05',
+          'H-07',
+          'H-09',
+          'H-11',
+        ],
+        updatedAt: now,
+      ),
       'supervisor-demo': UserProfile(
         uid: 'supervisor-demo',
         displayName: 'Hamza Inayat',

@@ -92,6 +92,16 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                             onTap: () =>
                                 setState(() => _role = UserRole.worker),
                           ),
+                          const SizedBox(height: AppSpacing.md),
+                          _RoleCard(
+                            title: 'Administrator',
+                            description:
+                                'Manage users, helmets, sites, thresholds and the audit log',
+                            leading: Icons.admin_panel_settings_outlined,
+                            selected: _role == UserRole.administrator,
+                            onTap: () =>
+                                setState(() => _role = UserRole.administrator),
+                          ),
                         ],
                       ),
                     ),
@@ -121,9 +131,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                             children: [
                               Flexible(
                                 child: Text(
-                                  _role == UserRole.supervisor
-                                      ? 'Continue as Supervisor'
-                                      : 'Continue as Worker',
+                                  'Continue as ${_role.label}',
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),

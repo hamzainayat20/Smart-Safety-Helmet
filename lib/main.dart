@@ -10,6 +10,7 @@ import 'alert_detail_screen.dart';
 import 'application/app_dependencies.dart';
 import 'application/gps_map_view_model.dart';
 import 'application/session_controller.dart';
+import 'data/admin_repository.dart';
 import 'data/firebase_repositories.dart';
 import 'data/aws_assistant_repository.dart';
 import 'data/firebase_notification_repository.dart';
@@ -18,6 +19,7 @@ import 'dashboard_screen.dart';
 import 'domain/models.dart';
 import 'domain/repositories.dart';
 import 'firebase_options.dart';
+import 'presentation/admin/admin_console_screen.dart';
 import 'presentation/design_system/design_system.dart';
 import 'role_selection_screen.dart';
 import 'splash_screen.dart';
@@ -56,6 +58,7 @@ void main() async {
           assistant: AwsAssistantRepository(),
           alerts: RtdbAlertRepository(functions: functions),
           configuration: RtdbConfigurationRepository(),
+          admin: FirebaseAdminRepository(),
           notifications: notifications,
           dataSourceKind: DataSourceKind.liveFirebase,
         ),
@@ -374,14 +377,10 @@ class AuthWrapper extends StatelessWidget {
 
         if (session.status == SessionStatus.authenticated &&
             session.profile?.role == UserRole.administrator) {
-          return _SessionMessageScreen(
-            icon: Icons.admin_panel_settings_outlined,
-            title: 'Administrator access confirmed',
-            message:
-                'The mobile administrator portal is not part of this phase. '
-                'No operational data is exposed here.',
-            actionLabel: 'Sign out',
-            onAction: session.signOut,
+          return AdminConsoleScreen(
+            dependencies: session.dependencies,
+            profile: session.profile!,
+            onSignOut: session.signOut,
           );
         }
 

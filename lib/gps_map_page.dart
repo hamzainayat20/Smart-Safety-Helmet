@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart' as latlong;
 
 import 'alert_detail_screen.dart';
 import 'application/dashboard_view_model.dart';
@@ -16,12 +16,12 @@ import 'sensor_detail_screen.dart';
 import 'user_role.dart';
 
 typedef SafetyMapBuilder =
-    Widget Function(
-      BuildContext context,
-      List<HelmetMapItem> positionedItems,
-      MapFocusRequest? focus,
-      int focusRevision,
-      ValueChanged<HelmetMapItem> onSelected,
+Widget Function(
+    BuildContext context,
+    List<HelmetMapItem> positionedItems,
+    MapFocusRequest? focus,
+    int focusRevision,
+    ValueChanged<HelmetMapItem> onSelected,
     );
 
 class GpsMapPage extends StatefulWidget {
@@ -122,7 +122,7 @@ class _GpsMapPageState extends State<GpsMapPage> {
                         positioned: _mapViewModel.positionedItems.length,
                         total: _mapViewModel.items.length,
                         onTap: () => setState(
-                          () => _mobileListExpanded = !_mobileListExpanded,
+                              () => _mobileListExpanded = !_mobileListExpanded,
                         ),
                       ),
                       if (_mobileListExpanded)
@@ -142,7 +142,7 @@ class _GpsMapPageState extends State<GpsMapPage> {
     title: 'Worker Map',
     compact: true,
     subtitle:
-        '${_mapViewModel.items.length} helmets • '
+    '${_mapViewModel.items.length} helmets • '
         '${_mapViewModel.positionedItems.length} positioned'
         '${_mapViewModel.simulationActive ? ' (simulated GPS)' : ''} • '
         '${widget.viewModel.profile.organizationName ?? 'Site unassigned'} • '
@@ -180,7 +180,7 @@ class _GpsMapPageState extends State<GpsMapPage> {
             icon: Icons.science_outlined,
             title: 'Simulated GPS (demo location)',
             message:
-                'No GPS module is fitted. Helmets without a real fix are '
+            'No GPS module is fitted. Helmets without a real fix are '
                 'shown at a fixed demo location for presentation only. It '
                 'is not the worker\'s real position and is never stored.',
           ),
@@ -195,26 +195,26 @@ class _GpsMapPageState extends State<GpsMapPage> {
           icon: Icons.lock_outline,
           title: 'Location access denied',
           message:
-              'Worker locations are unavailable for this account or assignment.',
+          'Worker locations are unavailable for this account or assignment.',
         )
       else if (_mapViewModel.errorMessage != null)
-        _MapMessage(
-          icon: Icons.cloud_off_outlined,
-          title: 'Location service unavailable',
-          message: _mapViewModel.errorMessage!,
-        )
-      else if (_mapViewModel.items.isEmpty)
-        const _MapMessage(
-          icon: Icons.location_disabled_outlined,
-          title: 'Nothing to track',
-          message: 'No authorized active helmets are available.',
-        )
-      else
-        for (final item in _mapViewModel.items)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: _LocationTile(item: item, onTap: () => _selectWorker(item)),
-          ),
+          _MapMessage(
+            icon: Icons.cloud_off_outlined,
+            title: 'Location service unavailable',
+            message: _mapViewModel.errorMessage!,
+          )
+        else if (_mapViewModel.items.isEmpty)
+            const _MapMessage(
+              icon: Icons.location_disabled_outlined,
+              title: 'Nothing to track',
+              message: 'No authorized active helmets are available.',
+            )
+          else
+            for (final item in _mapViewModel.items)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: _LocationTile(item: item, onTap: () => _selectWorker(item)),
+              ),
     ],
   );
 
@@ -289,7 +289,7 @@ class _GpsMapPageState extends State<GpsMapPage> {
             child: _MapSourceBadge(label: _mapViewModel.dataSourceLabel),
           ),
           if (_mapViewModel.positionedItems.any(
-            (item) => item.isSimulatedLocation,
+                (item) => item.isSimulatedLocation,
           ))
             const Positioned(
               left: AppSpacing.sm,
@@ -305,12 +305,12 @@ class _GpsMapPageState extends State<GpsMapPage> {
   }
 
   Widget _defaultMapBuilder(
-    BuildContext context,
-    List<HelmetMapItem> items,
-    MapFocusRequest? focus,
-    int focusRevision,
-    ValueChanged<HelmetMapItem> onSelected,
-  ) => _RealMapSurface(
+      BuildContext context,
+      List<HelmetMapItem> items,
+      MapFocusRequest? focus,
+      int focusRevision,
+      ValueChanged<HelmetMapItem> onSelected,
+      ) => _RealMapSurface(
     items: items,
     focus: focus,
     focusRevision: focusRevision,
@@ -324,8 +324,8 @@ class _GpsMapPageState extends State<GpsMapPage> {
   }
 
   Future<void> _showMarkerDetails(
-    HelmetMapItem item,
-  ) => showModalBottomSheet<void>(
+      HelmetMapItem item,
+      ) => showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
@@ -418,9 +418,9 @@ class _GpsMapPageState extends State<GpsMapPage> {
                 const SizedBox(height: AppSpacing.sm),
                 AppButton(
                   label:
-                      widget.viewModel.isAcknowledging(
-                        item.activeAlert!.alertId,
-                      )
+                  widget.viewModel.isAcknowledging(
+                    item.activeAlert!.alertId,
+                  )
                       ? 'Confirming with backend…'
                       : 'Acknowledge alert',
                   icon: Icons.task_alt,
@@ -450,13 +450,13 @@ class _GpsMapPageState extends State<GpsMapPage> {
 
   bool _canAcknowledge(SafetyAlert alert) =>
       widget.viewModel.profile.role == UserRole.supervisor &&
-      alert.status != AlertStatus.acknowledged &&
-      alert.status != AlertStatus.resolved;
+          alert.status != AlertStatus.acknowledged &&
+          alert.status != AlertStatus.resolved;
 
   Future<void> _confirmAcknowledgement(
-    BuildContext sheetContext,
-    SafetyAlert alert,
-  ) async {
+      BuildContext sheetContext,
+      SafetyAlert alert,
+      ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -561,25 +561,25 @@ class _DevelopmentMapFallback extends StatelessWidget {
           Expanded(
             child: positioned.isEmpty
                 ? Center(
-                    child: Text(
-                      'No valid coordinates available for preview.',
-                      style: AppTypography.caption.copyWith(
-                        color: AppColors.onInkMuted,
-                      ),
-                    ),
-                  )
+              child: Text(
+                'No valid coordinates available for preview.',
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.onInkMuted,
+                ),
+              ),
+            )
                 : Semantics(
-                    label:
-                        'Schematic worker location preview. This is not a real map.',
-                    child: CustomPaint(
-                      key: const Key('schematic-map-preview'),
-                      painter: _SchematicLocationPainter(
-                        items: positioned,
-                        focus: focus,
-                      ),
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
+              label:
+              'Schematic worker location preview. This is not a real map.',
+              child: CustomPaint(
+                key: const Key('schematic-map-preview'),
+                painter: _SchematicLocationPainter(
+                  items: positioned,
+                  focus: focus,
+                ),
+                child: const SizedBox.expand(),
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -604,9 +604,9 @@ class _DevelopmentMapFallback extends StatelessWidget {
                       focus == null
                           ? positioned.first
                           : positioned.firstWhere(
-                              (item) => item.helmet.helmetId == focus!.helmetId,
-                              orElse: () => positioned.first,
-                            ),
+                            (item) => item.helmet.helmetId == focus!.helmetId,
+                        orElse: () => positioned.first,
+                      ),
                     ),
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.onInk,
@@ -769,7 +769,7 @@ class _SchematicLocationPainter extends CustomPainter {
       final label = TextPainter(
         text: TextSpan(
           text:
-              '${helmetMapStateSymbol(item.markerState)} ${item.helmet.helmetId}',
+          '${helmetMapStateSymbol(item.markerState)} ${item.helmet.helmetId}',
           style: const TextStyle(
             color: AppColors.onPrimary,
             fontSize: 14,
@@ -818,178 +818,228 @@ class _RealMapSurface extends StatefulWidget {
 }
 
 class _RealMapSurfaceState extends State<_RealMapSurface> {
-  GoogleMapController? _controller;
-  final Map<HelmetMapState, BitmapDescriptor> _icons = {};
-  final Map<HelmetMapState, BitmapDescriptor> _simulatedIcons = {};
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_loadIcons());
-  }
+  final MapController _controller = MapController();
 
   @override
   void didUpdateWidget(covariant _RealMapSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.focus != null &&
         widget.focusRevision != oldWidget.focusRevision) {
-      unawaited(_applyRequestedFocus());
+      _applyRequestedFocus();
     }
   }
 
-  Future<void> _loadIcons() async {
-    for (final state in HelmetMapState.values) {
-      _icons[state] = await _createMarkerIcon(state);
-      _simulatedIcons[state] = await _createMarkerIcon(state, simulated: true);
-    }
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _applyRequestedFocus() async {
+  void _applyRequestedFocus() {
     final focus = widget.focus;
-    final controller = _controller;
-    if (focus == null || controller == null) return;
-    final target = LatLng(
-      focus.location.latitudeDegrees,
-      focus.location.longitudeDegrees,
+    if (focus == null) return;
+    _controller.move(
+      latlong.LatLng(
+        focus.location.latitudeDegrees,
+        focus.location.longitudeDegrees,
+      ),
+      focus.zoom,
     );
-    await controller.animateCamera(
-      CameraUpdate.newLatLngZoom(target, focus.zoom),
-    );
-    final markerId = focus.reason == MapFocusReason.criticalIncident
-        ? 'incident-${focus.alertId}'
-        : focus.helmetId;
-    await controller.showMarkerInfoWindow(MarkerId(markerId));
   }
 
   @override
   Widget build(BuildContext context) {
     final first = widget.focus?.location ?? widget.items.first.location!;
-    return GoogleMap(
-      initialCameraPosition: CameraPosition(
-        target: LatLng(first.latitudeDegrees, first.longitudeDegrees),
-        zoom: widget.focus?.zoom ?? 15,
-      ),
-      markers: _markers,
-      onMapCreated: (controller) {
-        _controller = controller;
-        unawaited(_applyRequestedFocus());
-      },
-      mapType: MapType.normal,
-      compassEnabled: true,
-      mapToolbarEnabled: false,
-      myLocationEnabled: false,
-      myLocationButtonEnabled: false,
-      zoomControlsEnabled: false,
+    return Stack(
+      children: [
+        FlutterMap(
+          mapController: _controller,
+          options: MapOptions(
+            initialCenter: latlong.LatLng(
+              first.latitudeDegrees,
+              first.longitudeDegrees,
+            ),
+            initialZoom: widget.focus?.zoom ?? 15,
+            onMapReady: _applyRequestedFocus,
+          ),
+          children: [
+            TileLayer(
+              // OpenStreetMap tiles: free, no API key or billing account.
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.example.smart_safety',
+            ),
+            MarkerLayer(markers: _markers),
+          ],
+        ),
+        const Positioned(
+          right: AppSpacing.sm,
+          bottom: AppSpacing.sm,
+          child: _MapAttribution(),
+        ),
+      ],
     );
   }
 
-  Set<Marker> get _markers {
-    final markers = <Marker>{
+  List<Marker> get _markers {
+    final markers = <Marker>[
       for (final item in widget.items)
         Marker(
-          markerId: MarkerId(item.helmet.helmetId),
-          position: LatLng(
+          point: latlong.LatLng(
             item.location!.latitudeDegrees,
             item.location!.longitudeDegrees,
           ),
-          icon:
-              (item.isSimulatedLocation ? _simulatedIcons : _icons)[item
-                  .markerState] ??
-              BitmapDescriptor.defaultMarker,
-          anchor: const Offset(0.5, 0.5),
-          infoWindow: InfoWindow(
-            title:
-                '${helmetMapStateSymbol(item.markerState)} ${item.workerName} • ${helmetMapStateLabel(item.markerState)}',
-            snippet:
-                'Helmet ${item.helmet.helmetId}${item.isLastKnown ? ' • Last Known' : ''}'
-                '${item.isSimulatedLocation ? ' • Simulated GPS (demo location)' : ''}',
+          width: item.isSimulatedLocation ? 184 : 128,
+          height: 34,
+          child: GestureDetector(
+            onTap: () => widget.onSelected(item),
+            child: _MarkerPill(
+              state: item.markerState,
+              simulated: item.isSimulatedLocation,
+            ),
           ),
-          onTap: () => widget.onSelected(item),
         ),
-    };
+    ];
     final focus = widget.focus;
-    if (focus != null &&
-        focus.reason == MapFocusReason.criticalIncident &&
-        focus.alertId != null) {
-      markers.add(
-        Marker(
-          markerId: MarkerId('incident-${focus.alertId}'),
-          position: LatLng(
-            focus.location.latitudeDegrees,
-            focus.location.longitudeDegrees,
+    if (focus != null) {
+      final callout = _calloutFor(focus);
+      if (callout != null) {
+        markers.add(
+          Marker(
+            point: latlong.LatLng(
+              focus.location.latitudeDegrees,
+              focus.location.longitudeDegrees,
+            ),
+            width: 248,
+            height: 118,
+            alignment: Alignment.bottomCenter,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                _InfoCallout(title: callout.$1, snippet: callout.$2),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
-          icon:
-              _icons[HelmetMapState.critical] ??
-              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-          anchor: const Offset(0.5, 0.5),
-          zIndexInt: 100,
-          infoWindow: InfoWindow(
-            title: '!! Critical incident',
-            snippet: 'Helmet ${focus.helmetId}',
-          ),
-        ),
-      );
+        );
+      }
     }
     return markers;
   }
 
+  /// The title/snippet pair the Google-era info window showed for the
+  /// focused marker, now rendered as an in-map callout bubble.
+  (String, String)? _calloutFor(MapFocusRequest focus) {
+    if (focus.reason == MapFocusReason.criticalIncident &&
+        focus.alertId != null) {
+      return ('!! Critical incident', 'Helmet ${focus.helmetId}');
+    }
+    for (final item in widget.items) {
+      if (item.helmet.helmetId != focus.helmetId) continue;
+      return (
+      '${helmetMapStateSymbol(item.markerState)} ${item.workerName} • '
+          '${helmetMapStateLabel(item.markerState)}',
+      'Helmet ${item.helmet.helmetId}'
+          '${item.isLastKnown ? ' • Last Known' : ''}'
+          '${item.isSimulatedLocation ? ' • Simulated GPS (demo location)' : ''}',
+      );
+    }
+    return null;
+  }
+
   @override
   void dispose() {
-    _controller?.dispose();
+    _controller.dispose();
     super.dispose();
   }
 }
 
-Future<BitmapDescriptor> _createMarkerIcon(
-  HelmetMapState state, {
-  bool simulated = false,
-}) async {
-  final width = simulated ? 280.0 : 180.0;
-  const height = 58.0;
-  final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder);
-  final color = _stateColor(state);
-  final rect = RRect.fromRectAndRadius(
-    Rect.fromLTWH(2, 2, width - 4, height - 4),
-    const Radius.circular(22),
-  );
-  canvas.drawRRect(rect, Paint()..color = color);
-  canvas.drawRRect(
-    rect,
-    Paint()
-      ..color = AppColors.onPrimary
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4,
-  );
-  final painter = TextPainter(
-    text: TextSpan(
-      text:
-          '${simulated ? 'DEMO  ' : ''}'
-          '${helmetMapStateSymbol(state)}  ${helmetMapStateLabel(state)}',
-      style: const TextStyle(
-        color: AppColors.onPrimary,
-        fontSize: 22,
-        fontWeight: FontWeight.w900,
+/// The pill-shaped state label pinned at a helmet's position — the widget
+/// form of the canvas-drawn bitmap the Google map used.
+class _MarkerPill extends StatelessWidget {
+  const _MarkerPill({required this.state, required this.simulated});
+
+  final HelmetMapState state;
+  final bool simulated;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _stateColor(state),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: AppColors.onPrimary, width: 2),
       ),
-    ),
-    textDirection: TextDirection.ltr,
-    maxLines: 1,
-  )..layout(maxWidth: width - 20);
-  painter.paint(
-    canvas,
-    Offset((width - painter.width) / 2, (height - painter.height) / 2),
-  );
-  final image = await recorder.endRecording().toImage(
-    width.toInt(),
-    height.toInt(),
-  );
-  final data = await image.toByteData(format: ui.ImageByteFormat.png);
-  return BitmapDescriptor.bytes(
-    data!.buffer.asUint8List(),
-    width: width / 2,
-    height: 29,
-  );
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      alignment: Alignment.center,
+      child: Text(
+        '${simulated ? 'DEMO  ' : ''}'
+            '${helmetMapStateSymbol(state)}  ${helmetMapStateLabel(state)}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.onPrimary,
+          fontSize: 13,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoCallout extends StatelessWidget {
+  const _InfoCallout({required this.title, required this.snippet});
+
+  final String title;
+  final String snippet;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.ink,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.inkBorder),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.bodyStrong.copyWith(color: AppColors.onInk),
+          ),
+          Text(
+            snippet,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.caption.copyWith(color: AppColors.onInkMuted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// OpenStreetMap's tile policy requires visible attribution.
+class _MapAttribution extends StatelessWidget {
+  const _MapAttribution();
+
+  @override
+  Widget build(BuildContext context) {
+    return const DecoratedBox(
+      decoration: BoxDecoration(
+        color: Color(0xB3000000),
+        borderRadius: BorderRadius.all(Radius.circular(4)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        child: Text(
+          '© OpenStreetMap contributors',
+          style: TextStyle(color: Colors.white, fontSize: 10),
+        ),
+      ),
+    );
+  }
 }
 
 String _gpsDescription(HelmetMapItem item) {
@@ -1020,7 +1070,7 @@ SafetyStatus _stateStatus(HelmetMapState state) => switch (state) {
   HelmetMapState.gpsLost => SafetyStatus.offline,
 };
 
-/// Marker colour on the (light) Google map.
+/// Marker colour on the (light) OpenStreetMap tiles.
 Color _stateColor(HelmetMapState state) => _stateStatus(state).palette.strong;
 
 class _StatePill extends StatelessWidget {
@@ -1068,7 +1118,7 @@ class _LocationTile extends StatelessWidget {
                   item.location == null
                       ? 'Coordinates unavailable • ${item.helmet.zone ?? 'Zone unavailable'}'
                       : '${item.isSimulatedLocation ? 'Demo location ' : ''}'
-                            '${formatCoordinates(item.location)} • ${item.helmet.zone ?? 'Zone unavailable'}',
+                      '${formatCoordinates(item.location)} • ${item.helmet.zone ?? 'Zone unavailable'}',
                   style: AppTypography.caption.copyWith(
                     color: AppColors.textSecondary,
                     fontFeatures: const [FontFeature.tabularFigures()],

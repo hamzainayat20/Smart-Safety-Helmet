@@ -1,3 +1,5 @@
+import '../data/admin_repository.dart';
+import '../data/mock_admin_repository.dart';
 import '../data/mock_repositories.dart';
 import '../domain/repositories.dart';
 import 'simulated_gps.dart';
@@ -34,6 +36,7 @@ final class AppDependencies {
     required this.dataSourceKind,
     this.notifications = const NoopNotificationRepository(),
     this.assistant = const NoopAssistantRepository(),
+    this.admin = const NoopAdminRepository(),
     SensitiveDataRegistry? sensitiveData,
     SimulatedLocationProvider? simulatedLocations,
   }) : sensitiveData = sensitiveData ?? SensitiveDataRegistry(),
@@ -50,6 +53,12 @@ final class AppDependencies {
   final ConfigurationRepository configuration;
   final NotificationRepository notifications;
   final AssistantRepository assistant;
+
+  /// Admin console data access. Live construction uses the Firebase
+  /// implementation; the demo/mock construction uses the functional demo
+  /// repository over [MockDataSet]. The bare default stays Noop, which
+  /// refuses: the console is only operable where a repository serves it.
+  final AdminRepository admin;
   final DataSourceKind dataSourceKind;
   final SensitiveDataRegistry sensitiveData;
 
@@ -80,6 +89,7 @@ final class AppDependencies {
       readings: MockReadingRepository(data, backendConnected: backendConnected),
       assessments: MockAssessmentRepository(data),
       assistant: MockAssistantRepository(),
+      admin: MockAdminRepository(data),
       alerts: MockAlertRepository(data),
       configuration: MockConfigurationRepository(data),
       dataSourceKind: DataSourceKind.deterministicMock,

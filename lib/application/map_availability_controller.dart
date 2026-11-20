@@ -20,7 +20,7 @@ final class MapAvailabilityController extends ChangeNotifier {
     try {
       _result = await _runtime.initialize();
     } on Object catch (error, stackTrace) {
-      debugPrint('Google Maps runtime initialization failed: $error');
+      debugPrint('Map runtime initialization failed: $error');
       debugPrintStack(stackTrace: stackTrace);
       _result = const MapsRuntimeResult(
         MapsRuntimeStatus.loadFailed,

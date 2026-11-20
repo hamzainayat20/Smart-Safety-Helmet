@@ -232,6 +232,34 @@ describe('Realtime Database authorization', () => {
     await assertFails(set(ref(database, 'users/worker2/role'), 'administrator'));
   });
 
+  test('administrator console can list whole collections in real time; others cannot', async () => {
+    const admin = environment.authenticatedContext('administrator1', verified('administrator')).database();
+    await assertSucceeds(getDatabaseValue(ref(admin, 'users')));
+    await assertSucceeds(getDatabaseValue(ref(admin, 'sites')));
+    await assertSucceeds(getDatabaseValue(ref(admin, 'helmets')));
+    const fleetAlerts = (database, limit) => query(
+      ref(database, 'alerts'),
+      orderByChild('serverReceivedAt'),
+      limitToLast(limit),
+    );
+    await assertSucceeds(getDatabaseValue(fleetAlerts(admin, 50)));
+    await assertFails(getDatabaseValue(fleetAlerts(admin, 501)));
+    await assertFails(getDatabaseValue(ref(admin, 'alerts')));
+    await assertFails(set(ref(admin, 'helmets/helmetA/current/serverReceivedAt'), 2000));
+    await assertFails(set(ref(admin, 'sites/siteC'), { name: 'C' }));
+
+    for (const [uid, role] of [['worker1', 'worker'], ['supervisor1', 'supervisor']]) {
+      const database = environment.authenticatedContext(uid, verified(role)).database();
+      await assertFails(getDatabaseValue(ref(database, 'users')));
+      await assertFails(getDatabaseValue(ref(database, 'sites')));
+      await assertFails(getDatabaseValue(ref(database, 'helmets')));
+      await assertFails(getDatabaseValue(fleetAlerts(database, 50)));
+    }
+    // A forged administrator claim on a disabled account is still denied.
+    const disabled = environment.authenticatedContext('disabled1', verified('administrator')).database();
+    await assertFails(getDatabaseValue(ref(disabled, 'helmets')));
+  });
+
   test('disabled principal is denied even with a valid role claim', async () => {
     const database = environment.authenticatedContext('disabled1', verified('worker')).database();
     await assertFails(getDatabaseValue(ref(database, 'users/disabled1')));

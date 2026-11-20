@@ -7,6 +7,7 @@ import {
 } from './telemetry_contract.js';
 import {
   authenticateDeviceRequest,
+  DEVICE_AUTH_HEADERS,
   DeviceAuthError,
   parseDeviceSecretRegistry,
 } from './device_auth.js';
@@ -166,6 +167,35 @@ async function markEventStored(reservation, hash) {
   }
 }
 
+// Admin-registered helmets (Admin Console, module M15) keep their device
+// credential in /deviceSecrets/{helmetId} because a callable cannot rewrite
+// the HELMET_DEVICE_SECRETS env secret. Helmets present in the env registry
+// are verified exactly as before and never touch the database here; only a
+// helmet missing from the env registry falls back to its /deviceSecrets
+// record, which then goes through the identical authenticateDeviceRequest
+// verification (keyVersion match, revoked check, HMAC comparison).
+async function secretRegistryWithDatabaseFallback(database, headers, envRegistry) {
+  const helmetId = headers[DEVICE_AUTH_HEADERS.helmetId];
+  if (typeof helmetId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(helmetId) ||
+      Object.hasOwn(envRegistry, helmetId)) {
+    return envRegistry;
+  }
+  let stored;
+  try {
+    stored = (await database.ref(`deviceSecrets/${helmetId}`).get()).val();
+  } catch {
+    throw new DeviceAuthError(
+      'DEVICE_AUTH_UNAVAILABLE',
+      'Device authentication is unavailable.',
+      503,
+    );
+  }
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) {
+    return envRegistry;
+  }
+  return { ...envRegistry, [helmetId]: stored };
+}
+
 export function createTelemetryIngestionHandler({
   database,
   secretRegistryValue,
@@ -190,10 +220,16 @@ export function createTelemetryIngestionHandler({
         : Buffer.from(typeof request.body === 'string' ? request.body : JSON.stringify(request.body ?? null));
       enforceTelemetryPayloadSize(rawBody);
       const now = clock();
+      const headers = headerMap(request.headers);
+      const secretRegistry = await secretRegistryWithDatabaseFallback(
+        database,
+        headers,
+        parseDeviceSecretRegistry(secretRegistryValue()),
+      );
       const auth = authenticateDeviceRequest({
-        headers: headerMap(request.headers),
+        headers,
         rawBody,
-        secretRegistry: parseDeviceSecretRegistry(secretRegistryValue()),
+        secretRegistry,
         now,
       });
       // Opportunistic bounded cleanup keeps active helmet state bounded. A

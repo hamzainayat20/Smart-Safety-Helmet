@@ -216,7 +216,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         vertical: AppSpacing.sm + 6,
                                       ),
                                       child: Text(
-                                        'Supervisor accounts are invite-only',
+                                        '${widget.role.label} accounts are invite-only',
                                         style: AppTypography.label.copyWith(
                                           color: AppColors.textPrimary,
                                         ),
