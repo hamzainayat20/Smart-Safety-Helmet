@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -9,6 +8,7 @@ import '../domain/models.dart';
 import '../domain/repositories.dart';
 import '../firebase_options.dart';
 import '../user_role.dart';
+import 'aws_api_client.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -21,12 +21,12 @@ final class FirebaseSupervisorNotificationRepository
     implements NotificationRepository {
   FirebaseSupervisorNotificationRepository({
     FirebaseMessaging? messaging,
-    FirebaseFunctions? functions,
+    AwsApiClient? apiClient,
   }) : _messaging = messaging ?? FirebaseMessaging.instance,
-       _functions = functions ?? FirebaseFunctions.instance;
+       _apiClient = apiClient ?? AwsApiClient();
 
   final FirebaseMessaging _messaging;
-  final FirebaseFunctions _functions;
+  final AwsApiClient _apiClient;
   final StreamController<AlertNotificationIntent> _intents =
       StreamController.broadcast();
 
@@ -140,7 +140,7 @@ final class FirebaseSupervisorNotificationRepository
   Future<void> _associate(String token) async {
     final actor = _actor;
     if (actor == null || actor.role != UserRole.supervisor) return;
-    await _functions.httpsCallable('registerFcmToken').call({
+    await _apiClient.request('POST', '/v1/fcm-token', {
       'token': token,
       'platform': _platformName,
     });
@@ -149,7 +149,7 @@ final class FirebaseSupervisorNotificationRepository
 
   Future<void> _removeAssociation(String token) async {
     try {
-      await _functions.httpsCallable('removeFcmToken').call({'token': token});
+      await _apiClient.request('DELETE', '/v1/fcm-token', {'token': token});
     } on Object {
       // Deleting the local registration token below invalidates delivery even
       // when the server association cannot be reached during sign-out.

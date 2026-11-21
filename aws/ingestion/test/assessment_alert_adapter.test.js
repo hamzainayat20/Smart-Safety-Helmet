@@ -206,3 +206,18 @@ test('an alert failure never changes the device response or stored data', async 
   );
   assert.equal(database.data.alerts, undefined);
 });
+
+test('a push failure never changes a successful ingestion response', async () => {
+  const database = new FakeDatabase();
+  let attempts = 0;
+  const response = await handlerFor(database, 'warning', {
+    alertDelivery: async () => {
+      attempts += 1;
+      throw new Error('messaging unavailable');
+    },
+  })(gatewayEvent(payload()));
+  assert.equal(response.statusCode, 202);
+  assert.equal(JSON.parse(response.body).assessmentStatus, 'completed');
+  assert.equal(attempts, 1);
+  assert.equal(Object.values(database.data.alerts ?? {}).length, 1);
+});

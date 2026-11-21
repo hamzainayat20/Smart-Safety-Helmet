@@ -1,0 +1,22 @@
+{
+  "name": "smart-safety-aws-alert-actions",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "test": "node --test test/alert_actions_service.test.js test/runtime_import.test.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ssm": "3.1164.0",
+    "firebase-admin": "14.5.0"
+  },
+  "overrides": {
+    "jose": "5.10.0",
+    "glob": "14.0.4",
+    "minimatch": "11.0.5",
+    "rimraf": "6.1.4"
+  }
+}

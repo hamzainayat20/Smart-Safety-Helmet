@@ -43,6 +43,7 @@ export function createAwsTelemetryHandler({
   inferenceClient,
   clock = () => Date.now(),
   alertWriter = createAlertFromAssessment,
+  alertDelivery = null,
 }) {
   const ingest = createTelemetryIngestionHandler({
     database,
@@ -74,9 +75,17 @@ export function createAwsTelemetryHandler({
       assessmentStatus = result.status;
       if (result.status === 'completed' && result.assessment) {
         try {
-          // In-app alert record only (no push notification). A failure here
-          // never changes the telemetry or assessment outcome.
-          await alertWriter({ database, assessment: result.assessment, reading: source, clock });
+          const alertResult = await alertWriter({
+            database, assessment: result.assessment, reading: source, clock,
+          });
+          if (alertResult.status === 'created' && alertDelivery) {
+            try {
+              const alert = (await database.ref(`alerts/${alertResult.alertId}`).get()).val();
+              if (alert) await alertDelivery(alert);
+            } catch {
+              // Push delivery is best-effort and never changes ingestion.
+            }
+          }
         } catch {
           // Alert creation is best-effort and must not affect the device.
         }

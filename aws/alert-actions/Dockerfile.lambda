@@ -1,0 +1,9 @@
+FROM public.ecr.aws/lambda/nodejs:22
+
+COPY aws/alert-actions/package.json aws/alert-actions/package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY aws/alert-actions ${LAMBDA_TASK_ROOT}/aws/alert-actions
+COPY functions/src ${LAMBDA_TASK_ROOT}/functions/src
+
+CMD ["aws/alert-actions/handler.handler"]

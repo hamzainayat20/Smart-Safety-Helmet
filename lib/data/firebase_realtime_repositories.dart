@@ -1,13 +1,13 @@
 import 'dart:async';
 
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 import '../domain/models.dart';
 import '../domain/repositories.dart';
 import '../user_role.dart';
 import 'sensor_reading_ingestion.dart';
+import 'aws_api_client.dart';
 
 abstract final class RealtimeDatabasePaths {
   static String user(String uid) => 'users/$uid';
@@ -46,18 +46,6 @@ RepositoryAccessException _databaseFailure(Object error) {
     return const RepositoryAccessException(
       'PERMISSION_DENIED',
       'Permission denied for the requested monitoring data.',
-    );
-  }
-  if (error is FirebaseFunctionsException) {
-    final code = switch (error.code) {
-      'permission-denied' || 'unauthenticated' => 'PERMISSION_DENIED',
-      'failed-precondition' => 'HAZARD_ONGOING',
-      'not-found' => 'NOT_FOUND',
-      _ => 'BACKEND_ERROR',
-    };
-    return RepositoryAccessException(
-      code,
-      error.message ?? 'The alert operation could not be completed.',
     );
   }
   return const RepositoryAccessException(
@@ -519,13 +507,14 @@ final class RtdbAssessmentRepository implements AssessmentRepository {
 final class RtdbAlertRepository implements AlertRepository {
   RtdbAlertRepository({
     FirebaseDatabase? database,
-    FirebaseFunctions? functions,
+    FirebaseAuth? auth,
+    AwsApiClient? apiClient,
     this.alertLimitPerHelmet = 100,
   }) : _database = database ?? FirebaseDatabase.instance,
-       _functions = functions ?? FirebaseFunctions.instance;
+       _apiClient = apiClient ?? AwsApiClient(auth: auth);
 
   final FirebaseDatabase _database;
-  final FirebaseFunctions _functions;
+  final AwsApiClient _apiClient;
   final int alertLimitPerHelmet;
 
   Stream<Map<String, SafetyAlert>> _watchHelmetAlerts(String helmetId) {
@@ -629,19 +618,19 @@ final class RtdbAlertRepository implements AlertRepository {
       });
 
   Future<SafetyAlert> _callAlertOperation(
-    String functionName,
+    String path,
     String label,
     Map<String, Object?> data,
   ) => _guardRequest(() async {
-    final response = await _functions.httpsCallable(functionName).call(data);
-    return _parseCallableAlert(response.data, label);
+    final response = await _apiClient.request('POST', path, data);
+    return _parseCallableAlert(response, label);
   });
 
   @override
   Future<SafetyAlert> markViewed({
     required UserProfile actor,
     required String alertId,
-  }) => _callAlertOperation('markAlertViewed', 'Mark viewed', {
+  }) => _callAlertOperation('/v1/alerts/viewed', 'Mark viewed', {
     'alertId': alertId,
   });
 
@@ -659,7 +648,7 @@ final class RtdbAlertRepository implements AlertRepository {
         ),
       );
     }
-    return _callAlertOperation('acknowledgeAlert', 'Acknowledge', {
+    return _callAlertOperation('/v1/alerts/acknowledge', 'Acknowledge', {
       'alertId': alertId,
     });
   }
@@ -669,7 +658,7 @@ final class RtdbAlertRepository implements AlertRepository {
     required UserProfile actor,
     required String alertId,
     required String resolutionNote,
-  }) => _callAlertOperation('resolveAlert', 'Resolve', {
+  }) => _callAlertOperation('/v1/alerts/resolve', 'Resolve', {
     'alertId': alertId,
     'resolutionNote': resolutionNote,
   });
@@ -678,7 +667,7 @@ final class RtdbAlertRepository implements AlertRepository {
   Future<SafetyAlert> retryDelivery({
     required UserProfile actor,
     required String alertId,
-  }) => _callAlertOperation('retryAlertDelivery', 'Retry delivery', {
+  }) => _callAlertOperation('/v1/alerts/retry-delivery', 'Retry delivery', {
     'alertId': alertId,
   });
 }

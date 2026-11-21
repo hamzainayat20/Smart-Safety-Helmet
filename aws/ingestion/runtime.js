@@ -5,9 +5,11 @@ import {
 } from '@aws-sdk/client-ssm';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
+import { getMessaging } from 'firebase-admin/messaging';
 
 import { createAwsTelemetryHandler } from './api_adapter.js';
 import { createLambdaInferenceClient } from './lambda_inference_client.js';
+import { createAlertDelivery } from '../../functions/src/alert_delivery.js';
 
 let runtimePromise;
 
@@ -45,6 +47,10 @@ async function buildRuntime() {
     databaseURL,
   });
   const database = getDatabase(app);
+  const alertDelivery = createAlertDelivery({
+    database,
+    messaging: getMessaging(app),
+  });
   const inferenceClient = createLambdaInferenceClient({
     lambdaClient: new LambdaClient({ region: requiredEnvironment('AWS_REGION') }),
     functionName: requiredEnvironment('INFERENCE_FUNCTION_NAME'),
@@ -54,6 +60,7 @@ async function buildRuntime() {
     database,
     inferenceClient,
     secretRegistryValue: () => secretRegistry,
+    alertDelivery,
   });
 }
 

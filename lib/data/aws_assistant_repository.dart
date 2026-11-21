@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../domain/models.dart';
 import '../domain/repositories.dart';
+import 'aws_api_client.dart';
 
 final class AwsAssistantRepository implements AssistantRepository {
   AwsAssistantRepository({
@@ -13,13 +14,7 @@ final class AwsAssistantRepository implements AssistantRepository {
     Uri? endpoint,
   }) : _auth = auth ?? FirebaseAuth.instance,
        _client = client ?? http.Client(),
-       _endpoint = endpoint ?? Uri.parse(_configuredEndpoint);
-
-  static const _configuredEndpoint = String.fromEnvironment(
-    'ASSISTANT_ENDPOINT',
-    defaultValue:
-        'https://3sqh6oq2i5.execute-api.us-east-1.amazonaws.com/staging/v1/assistant',
-  );
+       _endpoint = endpoint ?? AwsApiConfiguration.endpoint('/v1/assistant');
 
   final FirebaseAuth _auth;
   final http.Client _client;

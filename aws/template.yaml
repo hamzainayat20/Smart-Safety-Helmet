@@ -37,7 +37,7 @@ Resources:
       CorsConfiguration:
         AllowOrigins: ['*']
         AllowHeaders: [authorization, content-type]
-        AllowMethods: [POST, OPTIONS]
+        AllowMethods: [POST, DELETE, OPTIONS]
         MaxAge: 600
       DefaultRouteSettings:
         ThrottlingBurstLimit: 5
@@ -115,6 +115,45 @@ Resources:
             Method: POST
             Path: /v1/assistant
 
+  AlertActionsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      DockerContext: ..
+      Dockerfile: aws/alert-actions/Dockerfile.lambda
+      DockerTag: alert-actions-v1
+    Properties:
+      FunctionName: !Sub smart-safety-${EnvironmentName}-alert-actions
+      PackageType: Image
+      Architectures: [x86_64]
+      MemorySize: 512
+      Timeout: 20
+      Environment:
+        Variables:
+          CONFIGURATION_PARAMETER_NAME: !Ref ConfigurationParameterName
+          FIREBASE_DATABASE_URL: !Ref FirebaseDatabaseUrl
+      Policies:
+        - SSMParameterWithSlashPrefixReadPolicy:
+            ParameterName: !Ref ConfigurationParameterName
+      Events:
+        AlertViewed:
+          Type: HttpApi
+          Properties: {ApiId: !Ref TelemetryApi, Method: POST, Path: /v1/alerts/viewed}
+        AlertAcknowledge:
+          Type: HttpApi
+          Properties: {ApiId: !Ref TelemetryApi, Method: POST, Path: /v1/alerts/acknowledge}
+        AlertResolve:
+          Type: HttpApi
+          Properties: {ApiId: !Ref TelemetryApi, Method: POST, Path: /v1/alerts/resolve}
+        AlertRetryDelivery:
+          Type: HttpApi
+          Properties: {ApiId: !Ref TelemetryApi, Method: POST, Path: /v1/alerts/retry-delivery}
+        RegisterFcmToken:
+          Type: HttpApi
+          Properties: {ApiId: !Ref TelemetryApi, Method: POST, Path: /v1/fcm-token}
+        RemoveFcmToken:
+          Type: HttpApi
+          Properties: {ApiId: !Ref TelemetryApi, Method: DELETE, Path: /v1/fcm-token}
+
   InferenceLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
@@ -136,6 +175,13 @@ Resources:
       LogGroupName: !Sub /aws/lambda/smart-safety-${EnvironmentName}-assistant
       RetentionInDays: 7
 
+  AlertActionsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/smart-safety-${EnvironmentName}-alert-actions
+      RetentionInDays: 7
+
 Outputs:
   TelemetryEndpoint:
     Description: Signed staging telemetry endpoint. Never embed backend credentials.
@@ -145,3 +191,6 @@ Outputs:
   AssistantEndpoint:
     Description: Authenticated on-demand safety explanation endpoint.
     Value: !Sub https://${TelemetryApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${EnvironmentName}/v1/assistant
+  AlertActionsEndpoint:
+    Description: Authenticated alert actions and notification-token endpoint base.
+    Value: !Sub https://${TelemetryApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${EnvironmentName}/v1
