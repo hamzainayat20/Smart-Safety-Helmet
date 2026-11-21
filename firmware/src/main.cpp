@@ -14,6 +14,7 @@
 #include "smart_safety/EventIdGenerator.h"
 #include "smart_safety/FallFeatures.h"
 #include "smart_safety/FirmwareConfig.h"
+#include "smart_safety/MQ135AnalogSensor.h"
 #include "smart_safety/MQ7AnalogSensor.h"
 #include "smart_safety/MotionPipeline.h"
 #include "smart_safety/MpuSensor.h"
@@ -38,13 +39,17 @@ static_assert(config::kMpuIntervalMs == kFallSamplePeriodMs,
 DHT dht(config::kDht22Pin, DHT22);
 ArduinoDht22Reader dhtReader(dht);
 ArduinoAnalogInput mq7Input(config::kMq7AnalogPin);
+ArduinoAnalogInput mq135Input(config::kMq135AnalogPin);
 ArduinoTwoWireBus i2cBus(Wire);
 DHT22Sensor dhtSensor(dhtReader, config::kDhtIntervalMs,
                       config::kDht22Installed, config::kDhtFailureBackoffMs,
                       config::kDhtFailuresBeforeBackoff);
 MQ7AnalogSensor mq7Sensor(mq7Input, config::kMq7IntervalMs,
                           config::kMq7Oversample);
-SensorManager sensors(dhtSensor, mq7Sensor);
+MQ135AnalogSensor mq135Sensor(mq135Input, config::kMq7IntervalMs,
+                              config::kMq7Oversample);
+SensorManager sensors(dhtSensor, mq7Sensor,
+                      config::kMq135AnalogEnabled ? &mq135Sensor : nullptr);
 MpuSensor mpu(i2cBus, config::kMpuAddress, config::kMpuWakeDelayMs,
               config::kI2cTimeoutMs, config::kMpuReinitIntervalMs,
               config::kMpuMaxConsecutiveFailures);
@@ -83,6 +88,7 @@ bool reportedImuMissing = false;
 CalibrationState reportedCalibration = CalibrationState::kCollecting;
 unsigned reportedCalibrationAttempts = 1;
 bool reportedMq7Rail = false;
+bool reportedMq135Rail = false;
 
 std::string bootSessionId() {
   char value[9]{};
@@ -190,6 +196,14 @@ void reportTransitions(const MotionView& view) {
                    "GPIO34 must never exceed 3.3 V.");
   }
   reportedMq7Rail = mq7Sensor.lastReadAtRail();
+
+  if (mq135Sensor.lastReadAtRail() && !reportedMq135Rail) {
+    Serial.println("WARNING: MQ-135 ADC reading is at a rail (0 or 4095). "
+                   "Reported as mq135ReadFailed. If 4095, disconnect the "
+                   "MQ-135 AO wire and verify the 10k/20k divider with a "
+                   "multimeter: GPIO35 must never exceed 3.3 V.");
+  }
+  reportedMq135Rail = mq135Sensor.lastReadAtRail();
 }
 
 }  // namespace
@@ -200,6 +214,7 @@ void setup() {
   Wire.setClock(100000);
   if (config::kDht22Installed) dht.begin();
   mq7Input.begin();
+  if (config::kMq135AnalogEnabled) mq135Input.begin();
 
   Serial.printf("\nSmart Safety Helmet firmware %s (telemetry schema %s).\n",
                 config::kFirmwareVersion, config::kSchemaVersion);
@@ -269,9 +284,9 @@ void loop() {
   }
 
   SensorSnapshot snapshot = sensors.snapshot();
+  snapshot.gasWarmingUp = nowMs < config::kGasWarmUpMs;
   if (view.latest.has_value() &&
-      static_cast<std::uint32_t>(nowMs - view.latestMs) <=
-          config::kMotionStaleMs) {
+      motionSampleIsFresh(nowMs, view.latestMs, config::kMotionStaleMs)) {
     snapshot.motion = view.latest;
   }
   snapshot.fallStatus = view.status.localFallStatus;

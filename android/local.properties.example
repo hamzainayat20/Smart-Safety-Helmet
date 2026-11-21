@@ -1,5 +1,0 @@
-# Copy this entry into the ignored android/local.properties file.
-# Restrict the key in Google Cloud to Android apps using the production
-# application ID and release signing-certificate SHA-1 fingerprint. Enable
-# only Maps SDK for Android for this key.
-MAPS_API_KEY=replace_with_android_restricted_key

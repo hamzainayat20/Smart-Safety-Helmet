@@ -10,6 +10,18 @@
 
 namespace smart_safety {
 
+// True when a motion sample stamped at sampleMs is no older than maxAgeMs at
+// nowMs. The age is taken as a signed 32-bit difference so that a sample
+// stamped a few ms AFTER nowMs (the motion task on the other core can sample
+// between loop() reading millis() and copying the view) counts as fresh
+// instead of underflowing to ~4.29e9 ms and being dropped as stale. Also
+// correct across the 49.7-day millis() wrap.
+inline bool motionSampleIsFresh(std::uint32_t nowMs, std::uint32_t sampleMs,
+                                std::uint32_t maxAgeMs) {
+  const auto ageMs = static_cast<std::int32_t>(nowMs - sampleMs);
+  return ageMs <= static_cast<std::int32_t>(maxAgeMs);
+}
+
 // A real, complete window evaluated on the device. windowEndMs is the
 // millis() timestamp of its last sample; it is converted to UTC only at
 // upload time and only if device time is synchronized.

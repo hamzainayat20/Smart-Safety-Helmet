@@ -7,7 +7,6 @@ import 'package:smart_safety/application/simulated_gps.dart';
 import 'package:smart_safety/data/mock_repositories.dart';
 import 'package:smart_safety/domain/models.dart';
 import 'package:smart_safety/gps_map_page.dart';
-import 'package:smart_safety/platform/maps/maps_runtime.dart';
 
 // A public test coordinate used only by these tests.
 const testLatitude = '31.5204';
@@ -238,7 +237,6 @@ void main() {
     Future<_PageHarness> pumpPage(
       WidgetTester tester, {
       SimulatedLocationProvider? simulatedLocations,
-      MapsRuntimeResult runtimeResult = const MapsRuntimeResult.ready(),
     }) async {
       await tester.binding.setSurfaceSize(const Size(1400, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -258,7 +256,6 @@ void main() {
               viewModel: dashboard,
               onSignOut: () {},
               focusController: focus,
-              mapsRuntime: _ImmediateMapsRuntime(runtimeResult),
               mapBuilder: (_, items, _, _, _) {
                 harness.mappedItems = items;
                 return const SizedBox.expand();
@@ -335,50 +332,6 @@ void main() {
       await harness.dispose(tester);
     });
 
-    testWidgets('rejected Web Maps key falls back safely with simulation on', (
-      tester,
-    ) async {
-      final harness = await pumpPage(
-        tester,
-        simulatedLocations: activeProvider(),
-        runtimeResult: const MapsRuntimeResult(
-          MapsRuntimeStatus.invalidConfiguration,
-          message: 'The Web Maps API key was rejected.',
-        ),
-      );
-
-      expect(
-        find.text('Interactive map unavailable in development mode.'),
-        findsOneWidget,
-      );
-      expect(find.text('The Web Maps API key was rejected.'), findsOneWidget);
-      expect(find.byKey(const Key('schematic-map-preview')), findsOneWidget);
-      expect(harness.mappedItems, isNull, reason: 'Google Map not constructed');
-      expect(find.textContaining('Demo location 31.5204'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-
-      await harness.dispose(tester);
-    });
-
-    testWidgets('a timed-out map script falls back safely', (tester) async {
-      final harness = await pumpPage(
-        tester,
-        runtimeResult: const MapsRuntimeResult(
-          MapsRuntimeStatus.timedOut,
-          message:
-              'The Google Maps JavaScript API did not become ready in time.',
-        ),
-      );
-
-      expect(
-        find.text('The Google Maps JavaScript API did not become ready in time.'),
-        findsOneWidget,
-      );
-      expect(harness.mappedItems, isNull);
-      expect(tester.takeException(), isNull);
-
-      await harness.dispose(tester);
-    });
   });
 }
 
@@ -391,14 +344,6 @@ Future<void> _settleStreams() async {
   for (var index = 0; index < 5; index++) {
     await Future<void>.delayed(Duration.zero);
   }
-}
-
-final class _ImmediateMapsRuntime implements MapsRuntime {
-  const _ImmediateMapsRuntime(this.result);
-  final MapsRuntimeResult result;
-
-  @override
-  Future<MapsRuntimeResult> initialize() async => result;
 }
 
 final class _PageHarness {

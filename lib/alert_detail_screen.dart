@@ -214,7 +214,7 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
         ),
         const SizedBox(height: AppSpacing.md),
         _section(
-          title: 'GPS location',
+          title: 'Location',
           icon: Icons.location_on_outlined,
           children: [
             if (alert.location == null)
@@ -238,6 +238,29 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
                 value: alert.location!.isLastKnown
                     ? 'Last known location'
                     : 'Incident-time fix',
+              ),
+            ],
+            const Divider(),
+            if (_viewModel.latestPhoneLocation == null)
+              const _DetailRow(
+                label: 'Latest phone location',
+                value: 'Location unavailable',
+              )
+            else ...[
+              _DetailRow(
+                label: 'Latest phone location',
+                value:
+                    '${_viewModel.latestPhoneLocation!.latitudeDegrees.toStringAsFixed(5)}, '
+                    '${_viewModel.latestPhoneLocation!.longitudeDegrees.toStringAsFixed(5)}',
+              ),
+              _DetailRow(
+                label: 'Phone GPS updated',
+                value: _utc(_viewModel.latestPhoneLocation!.updatedAt),
+              ),
+              _DetailRow(
+                label: 'Accuracy',
+                value:
+                    '${_viewModel.latestPhoneLocation!.accuracyM.toStringAsFixed(0)} m',
               ),
             ],
           ],

@@ -16,6 +16,7 @@ final class HelmetMapItem {
     required this.reading,
     required this.location,
     required this.activeAlert,
+    this.phoneLocation,
     this.isSimulatedLocation = false,
   });
 
@@ -26,6 +27,7 @@ final class HelmetMapItem {
   final SensorReading? reading;
   final GPSLocation? location;
   final SafetyAlert? activeAlert;
+  final WorkerLocation? phoneLocation;
 
   /// True when [location] is a build-time demo location rather than a fix
   /// reported by helmet hardware.
@@ -33,6 +35,11 @@ final class HelmetMapItem {
 
   bool get hasMapPosition => location != null;
   bool get isLastKnown => location?.isLastKnown ?? false;
+  bool get isPhoneLocation => phoneLocation != null;
+  bool get phoneLocationIsStale =>
+      phoneLocation != null &&
+      DateTime.now().toUtc().difference(phoneLocation!.updatedAt) >
+          const Duration(minutes: 2);
 }
 
 enum MapFocusReason { workerSelection, criticalIncident }
@@ -104,7 +111,7 @@ final class GpsMapViewModel extends ChangeNotifier {
   GpsMapViewModel({
     required this.dashboard,
     DateTime Function()? clock,
-    this.gpsStaleAfter = const Duration(seconds: 30),
+    this.gpsStaleAfter = const Duration(minutes: 2),
     this.simulatedLocations = const DisabledSimulatedLocationProvider(),
   }) : _clock = clock ?? DateTime.now {
     dashboard.addListener(_dashboardChanged);
@@ -184,6 +191,7 @@ final class GpsMapViewModel extends ChangeNotifier {
 
   HelmetMapItem _project(Helmet helmet) {
     final reading = dashboard.readingFor(helmet.helmetId);
+    final phoneLocation = dashboard.workerLocationFor(helmet.helmetId);
     final sensorState = dashboard.monitoringStateFor(helmet);
     final activeAlerts =
         dashboard.alerts
@@ -198,10 +206,13 @@ final class GpsMapViewModel extends ChangeNotifier {
       helmet: helmet,
       workerName: dashboard.workerNameFor(helmet),
       sensorState: sensorState,
-      markerState: _markerState(reading, sensorState),
+      markerState: phoneLocation == null
+          ? _markerState(reading, sensorState)
+          : _phoneMarkerState(phoneLocation, sensorState),
       reading: reading,
-      location: reading?.location,
+      location: phoneLocation?.mapLocation ?? reading?.location,
       activeAlert: activeAlerts.firstOrNull,
+      phoneLocation: phoneLocation,
     );
   }
 
@@ -216,6 +227,7 @@ final class GpsMapViewModel extends ChangeNotifier {
       reading: item.reading,
       location: location,
       activeAlert: item.activeAlert,
+      phoneLocation: item.phoneLocation,
       isSimulatedLocation: true,
     );
   }
@@ -258,6 +270,16 @@ final class GpsMapViewModel extends ChangeNotifier {
       MonitoringState.offline => HelmetMapState.stale,
       _ => HelmetMapState.safe,
     };
+  }
+
+  HelmetMapState _phoneMarkerState(
+    WorkerLocation location,
+    MonitoringState sensorState,
+  ) {
+    if (_clock().toUtc().difference(location.updatedAt) > gpsStaleAfter) {
+      return HelmetMapState.stale;
+    }
+    return _sensorMarkerState(sensorState);
   }
 
   void _dashboardChanged() => notifyListeners();

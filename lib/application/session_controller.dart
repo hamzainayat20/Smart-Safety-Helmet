@@ -184,6 +184,27 @@ final class SessionController extends ChangeNotifier {
     } else {
       await dependencies.notifications.deactivate(actor: previous);
     }
+    if (effectiveRole == UserRole.worker) {
+      Helmet? assignedHelmet;
+      for (final helmetId in profile.authorizedHelmetIds) {
+        final helmet = await dependencies.helmets.getAuthorizedHelmet(
+          profile,
+          helmetId,
+        );
+        if (helmet?.assignedWorkerId == profile.uid) {
+          assignedHelmet = helmet;
+          break;
+        }
+      }
+      if (assignedHelmet != null) {
+        await dependencies.workerLocationTracker.activate(
+          actor: profile,
+          helmet: assignedHelmet,
+        );
+      }
+    } else {
+      await dependencies.workerLocationTracker.deactivate();
+    }
     _scheduleInactivityLock(effectiveRole);
     notifyListeners();
   }
@@ -365,6 +386,7 @@ final class SessionController extends ChangeNotifier {
     _inactivityTimer = null;
     await dependencies.sensitiveData.clearAll();
     await dependencies.notifications.deactivate(actor: previousProfile);
+    await dependencies.workerLocationTracker.deactivate();
     _profile = null;
     _identity = null;
     _errorMessage = null;

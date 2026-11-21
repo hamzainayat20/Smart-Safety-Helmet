@@ -154,6 +154,10 @@ SensorSnapshot TelemetryBuilder::sanitizeForIngestion(
       (*clean.mq7Raw < 0 || *clean.mq7Raw > 4095)) {
     clean.mq7Raw.reset();
   }
+  if (clean.mq135Raw.has_value() &&
+      (*clean.mq135Raw < 0 || *clean.mq135Raw > 4095)) {
+    clean.mq135Raw.reset();
+  }
   if (clean.fallWindow.has_value()) {
     const auto& window = *clean.fallWindow;
     if (!window.windowEndTimestampMs.has_value() ||
@@ -192,7 +196,9 @@ TelemetryRecord TelemetryBuilder::build(const TelemetryMetadata& metadata,
            << ",\"gyroZDegreesPerSecond\":null";
   }
   output << ",\"mq7Raw\":" << optionalJson(snapshot.mq7Raw)
-         << ",\"mq7Units\":\"raw ADC count, not ppm\",\"fallFeatures\":";
+         << ",\"mq7Units\":\"raw ADC count, not ppm\""
+         << ",\"mq135Raw\":" << optionalJson(snapshot.mq135Raw)
+         << ",\"mq135Units\":\"raw ADC count, not ppm\",\"fallFeatures\":";
   if (snapshot.fallWindow.has_value()) {
     appendFeatures(output, snapshot.fallWindow->features);
     output << ",\"windowEndTimestamp\":"
@@ -236,14 +242,21 @@ IngestionBuild TelemetryBuilder::buildIngestion(
   }
   if (clean.motion.has_value()) appendMotionFields(output, *clean.motion);
   if (clean.mq7Raw.has_value()) output << ",\"mq7Raw\":" << *clean.mq7Raw;
+  if (clean.mq135Raw.has_value()) {
+    output << ",\"mq135Raw\":" << *clean.mq135Raw;
+  }
   // Warm-up flags are required booleans in schema 2.0.
-  //  mq7WarmUp = true: the MQ-7 is powered but its heater cycle is not
-  //    controlled or verified, so it is never claimed to be ready.
-  //  mq135WarmUp = false: MQ-135 hardware is absent, so it is not warming
-  //    up; its absence is stated by the mq135ReadFailed fault instead. (true
-  //    would make the backend tell the worker to wait for a sensor that does
-  //    not exist.)
-  output << ",\"mq7WarmUp\":true,\"mq135WarmUp\":false";
+  //  mq7WarmUp = true only during the first config::kGasWarmUpMs after boot
+  //    (snapshot.gasWarmingUp); afterwards false so the gas model can run.
+  //  mq135WarmUp follows the same timer, but only while a valid MQ-135
+  //    reading exists; an absent sensor is stated by mq135ReadFailed and is
+  //    never reported as warming up.
+  //  mq7Uncalibrated / mq7HeaterStateUnknown (and the MQ-135 equivalents)
+  //    are still always sent as faults.
+  output << ",\"mq7WarmUp\":" << (clean.gasWarmingUp ? "true" : "false")
+         << ",\"mq135WarmUp\":"
+         << (clean.gasWarmingUp && clean.mq135Raw.has_value() ? "true"
+                                                              : "false");
   if (clean.fallWindow.has_value()) {
     output << ",\"fallFeatures\":";
     appendFeatures(output, clean.fallWindow->features);

@@ -19,6 +19,7 @@
 #include "smart_safety/FallDetectionEngine.h"
 #include "smart_safety/FallFeatures.h"
 #include "smart_safety/FirmwareConfig.h"
+#include "smart_safety/MQ135AnalogSensor.h"
 #include "smart_safety/MQ7AnalogSensor.h"
 #include "smart_safety/MotionPipeline.h"
 #include "smart_safety/MpuSensor.h"
@@ -697,6 +698,101 @@ void testMq7ValidAndInvalidAdc() {
   require(!failed.mq7Raw.has_value(), "failed ADC read produced a value");
 }
 
+void testMotionSampleFreshness() {
+  // Sample taken 17 ms after loop() read millis() (seen on hardware as
+  // lastRestartDevMs=-17): must be fresh, not dropped as stale.
+  require(motionSampleIsFresh(10000, 10017, config::kMotionStaleMs),
+          "future-stamped motion sample was treated as stale");
+  require(motionSampleIsFresh(10000, 10000, config::kMotionStaleMs) &&
+              motionSampleIsFresh(10100, 10000, config::kMotionStaleMs),
+          "motion sample within the stale limit was rejected");
+  require(!motionSampleIsFresh(10101, 10000, config::kMotionStaleMs) &&
+              !motionSampleIsFresh(20000, 10000, config::kMotionStaleMs),
+          "old motion sample was accepted");
+  // millis() wrap: sample just before wrap, now just after.
+  require(motionSampleIsFresh(20u, 0xFFFFFFF0u, config::kMotionStaleMs),
+          "motion freshness broke across millis() wrap");
+}
+
+void testMq135ValidReading() {
+  FakeAnalogInput adc;
+  adc.values = {410, 414};
+  MQ135AnalogSensor sensor(adc, config::kMq7IntervalMs, config::kMq7Oversample);
+  SensorSnapshot snapshot;
+  sensor.begin(0);
+  require(!sensor.poll(999, snapshot), "MQ-135 sampled early");
+  require(sensor.poll(1000, snapshot) && snapshot.mq135Raw == 412 &&
+              adc.reads == 8 && !sensor.lastReadAtRail(),
+          "MQ-135 oversampled mean is wrong");
+  require(!hasFault(snapshot, "mq135ReadFailed") &&
+              hasFault(snapshot, "mq135Uncalibrated") &&
+              hasFault(snapshot, "mq135HeaterStateUnknown"),
+          "valid MQ-135 raw must still be uncalibrated with unknown heater state");
+}
+
+void testMq135FailedRead() {
+  FakeAnalogInput adc;
+  adc.succeed = false;
+  SensorSnapshot snapshot;
+  snapshot.mq135Raw = 412;  // a stale value must be cleared, not kept
+  MQ135AnalogSensor sensor(adc, 1000, 8);
+  sensor.begin(0);
+  require(sensor.poll(1000, snapshot), "MQ-135 read was not attempted");
+  require(!snapshot.mq135Raw.has_value() && hasFault(snapshot, "mq135ReadFailed") &&
+              !sensor.lastReadAtRail(),
+          "failed MQ-135 ADC read produced a value");
+  for (const auto& values : std::vector<std::vector<int>>{{5000}, {-1}}) {
+    FakeAnalogInput bad;
+    bad.values = values;
+    SensorSnapshot out;
+    MQ135AnalogSensor badSensor(bad, 1000, 8);
+    badSensor.begin(0);
+    badSensor.poll(1000, out);
+    require(!out.mq135Raw.has_value() && hasFault(out, "mq135ReadFailed"),
+            "out-of-range MQ-135 ADC value was reported: " +
+                std::to_string(values[0]));
+  }
+}
+
+void testMq135RailRejected() {
+  for (const auto& values : std::vector<std::vector<int>>{{4095}, {0}}) {
+    FakeAnalogInput adc;
+    adc.values = values;
+    SensorSnapshot rail;
+    rail.mq135Raw = 412;
+    MQ135AnalogSensor sensor(adc, 1000, 8);
+    sensor.begin(0);
+    sensor.poll(1000, rail);
+    require(!rail.mq135Raw.has_value() && hasFault(rail, "mq135ReadFailed") &&
+                sensor.lastReadAtRail(),
+            "MQ-135 rail value was reported: " + std::to_string(values[0]));
+  }
+}
+
+void testSensorManagerPollsMq135() {
+  FakeDhtReader dhtReader;
+  FakeAnalogInput mq7Adc;
+  FakeAnalogInput mq135Adc;
+  mq135Adc.values = {412};
+  DHT22Sensor dht(dhtReader, 2000);
+  MQ7AnalogSensor mq7(mq7Adc, 1000);
+  MQ135AnalogSensor mq135(mq135Adc, 1000);
+  SensorManager manager(dht, mq7, &mq135);
+  manager.begin(0);
+  const auto result = manager.poll(1000);
+  require(result.mq7Updated && result.mq135Updated &&
+              manager.snapshot().mq7Raw == 208 &&
+              manager.snapshot().mq135Raw == 412,
+          "SensorManager did not poll both MQ sensors");
+
+  SensorManager withoutMq135(dht, mq7);
+  withoutMq135.begin(0);
+  require(!withoutMq135.poll(2000).mq135Updated &&
+              !withoutMq135.snapshot().mq135Raw.has_value() &&
+              hasFault(withoutMq135.snapshot(), "mq135ReadFailed"),
+          "absent MQ-135 must be reported as mq135ReadFailed");
+}
+
 // ---------------------------------------------------------------- schema 2.0
 
 TelemetryMetadata synchronized(std::uint64_t timestamp = 1775900000000ULL) {
@@ -751,6 +847,51 @@ void testSchemaTwoExactPayload() {
               built.json,
           "payload serialization is not deterministic");
   writeFixture("physical_with_window.json", *built.json);
+}
+
+void testSchemaTwoPayloadWithMq135() {
+  TelemetryBuilder builder;
+  auto snapshot = physicalSnapshot();
+  snapshot.mq135Raw = 412;
+  const auto built = builder.buildIngestion(synchronized(), snapshot);
+  require(built.json.has_value() && built.block == IngestionBlock::kNone,
+          "telemetry with MQ-135 was not built");
+  const auto& json = *built.json;
+  require(contains(json, "\"mq7Raw\":208,\"mq135Raw\":412,") &&
+              contains(json, "\"mq7WarmUp\":true,\"mq135WarmUp\":true") &&
+              !contains(json, "mq135ReadFailed") &&
+              contains(json, "\"mq135Uncalibrated\"") &&
+              contains(json, "\"mq135HeaterStateUnknown\""),
+          "valid MQ-135 payload is wrong:\n" + json);
+  writeFixture("physical_with_mq135.json", json);
+
+  auto invalid = physicalSnapshot();
+  invalid.mq135Raw = 5000;  // out of ADC range: dropped, fault stated
+  const auto dropped = builder.buildIngestion(synchronized(), invalid);
+  require(!contains(*dropped.json, "mq135Raw") &&
+              contains(*dropped.json, "\"mq135ReadFailed\""),
+          "out-of-range MQ-135 value was sent");
+
+  auto warm = snapshot;
+  warm.gasWarmingUp = false;  // after config::kGasWarmUpMs
+  const auto ready = builder.buildIngestion(synchronized(), warm);
+  require(contains(*ready.json, "\"mq7WarmUp\":false,\"mq135WarmUp\":false") &&
+              contains(*ready.json, "\"mq7Uncalibrated\"") &&
+              contains(*ready.json, "\"mq135Uncalibrated\""),
+          "warmed-up payload must clear warm-up flags but keep faults:\n" +
+              *ready.json);
+  writeFixture("physical_with_mq135_warm.json", *ready.json);
+
+  auto absentWarm = physicalSnapshot();
+  absentWarm.gasWarmingUp = true;  // MQ-135 absent: never "warming up"
+  const auto absent = builder.buildIngestion(synchronized(), absentWarm);
+  require(contains(*absent.json, "\"mq7WarmUp\":true,\"mq135WarmUp\":false"),
+          "absent MQ-135 must not be reported as warming up");
+
+  const auto local = builder.build(synchronized(), snapshot);
+  require(contains(local.json, "\"mq135Raw\":412") &&
+              !contains(local.json, "mq135ReadFailed"),
+          "local diagnostics lost the MQ-135 reading");
 }
 
 void testNoFabricatedOrForbiddenFields() {
@@ -839,6 +980,7 @@ void testLocalDiagnosticHonesty() {
               contains(record.json, "\"deviceTimeStatus\":\"unsynchronized\"") &&
               contains(record.json, "\"accelXG\":null") &&
               contains(record.json, "\"mq7Raw\":null") &&
+              contains(record.json, "\"mq135Raw\":null") &&
               contains(record.json, "\"fallFeatures\":null") &&
               contains(record.json, "not ppm") &&
               !contains(record.json, "ppm\":"),
@@ -916,6 +1058,7 @@ void testUnavailableHardwareStaysUnavailable() {
               !battery.available() && !buzzer.activate() && !led.activate(),
           "absent hardware reported availability");
   require(config::kMq7AnalogPin == 34 && !config::kMq7DigitalEnabled &&
+              config::kMq135AnalogPin == 35 && config::kMq135AnalogEnabled &&
               config::kI2cSdaPin == 21 && config::kI2cSclPin == 22 &&
               config::kMpuAddress == 0x68 && config::kMpuIntervalMs == 20 &&
               kFallSamplePeriodMs == 20 &&
@@ -959,7 +1102,13 @@ int main(int argc, char** argv) {
       {"DHT valid and missing", testDhtValidAndMissing},
       {"DHT missing does not stop motion", testDhtMissingDoesNotStopMotion},
       {"MQ-7 valid and invalid ADC", testMq7ValidAndInvalidAdc},
+      {"motion sample freshness (signed age)", testMotionSampleFreshness},
+      {"MQ-135 valid reading", testMq135ValidReading},
+      {"MQ-135 failed read", testMq135FailedRead},
+      {"MQ-135 rail rejected", testMq135RailRejected},
+      {"SensorManager polls MQ-135", testSensorManagerPollsMq135},
       {"schema 2.0 exact payload", testSchemaTwoExactPayload},
+      {"schema 2.0 payload with MQ-135", testSchemaTwoPayloadWithMq135},
       {"no fabricated or forbidden fields", testNoFabricatedOrForbiddenFields},
       {"partial or invalid window dropped", testPartialOrInvalidWindowDropped},
       {"ingestion blocks", testIngestionBlocks},

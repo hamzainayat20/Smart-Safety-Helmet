@@ -292,6 +292,10 @@ class _AlertCard extends StatelessWidget {
         ? 'Evidence available in incident record'
         : '${formatMeasurement(alert.sensorValue, alert.unit!)}'
               '${alert.threshold == null ? '' : ' (threshold: ${formatMeasurement(alert.threshold, alert.unit!)})'}';
+    final phoneLocation =
+        alert.type == AlertType.fall || alert.type == AlertType.gas
+        ? viewModel.workerLocationFor(alert.helmetId)
+        : null;
 
     return AppCard(
       status: resolved ? null : status,
@@ -352,7 +356,11 @@ class _AlertCard extends StatelessWidget {
             ),
             child: Text(
               '$evidence\nHelmet ${alert.helmetId} • ${helmet?.zone ?? 'Zone unavailable'}\n'
-              '${formatCoordinates(alert.location)}',
+              '${formatCoordinates(alert.location)}'
+              '${phoneLocation == null ? '' : '\nLatest phone location: '
+                  '${phoneLocation.latitudeDegrees.toStringAsFixed(5)}, '
+                  '${phoneLocation.longitudeDegrees.toStringAsFixed(5)} • '
+                  '${formatRelativeTime(phoneLocation.updatedAt)}'}',
               style: AppTypography.caption.copyWith(
                 color: AppColors.textPrimary,
               ),

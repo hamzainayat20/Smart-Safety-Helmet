@@ -5,12 +5,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'alert_detail_screen.dart';
 import 'application/app_dependencies.dart';
 import 'application/gps_map_view_model.dart';
 import 'application/session_controller.dart';
 import 'data/firebase_repositories.dart';
+import 'data/android_worker_location_tracker.dart';
 import 'data/aws_assistant_repository.dart';
 import 'data/firebase_notification_repository.dart';
 import 'data/firebase_realtime_repositories.dart';
@@ -44,6 +46,7 @@ void main() async {
     final notifications = FirebaseSupervisorNotificationRepository(
       functions: functions,
     );
+    final workerLocations = RtdbWorkerLocationRepository();
     runApp(
       MyApp(
         dependencies: AppDependencies(
@@ -52,6 +55,10 @@ void main() async {
           sites: RtdbSiteRepository(),
           helmets: RtdbHelmetRepository(),
           readings: RtdbReadingRepository(),
+          workerLocations: workerLocations,
+          workerLocationTracker: AndroidWorkerLocationTracker(
+            locations: workerLocations,
+          ),
           assessments: RtdbAssessmentRepository(),
           assistant: AwsAssistantRepository(),
           alerts: RtdbAlertRepository(functions: functions),
@@ -169,24 +176,135 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late final SessionController _session;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   final GlobalKey<ScaffoldMessengerState> _messengerKey =
       GlobalKey<ScaffoldMessengerState>();
   final MapFocusController _mapFocusController = MapFocusController();
   StreamSubscription<AlertNotificationIntent>? _notificationSubscription;
+  StreamSubscription<WorkerLocationTrackingState>? _locationSubscription;
   AlertNotificationIntent? _pendingNotification;
   bool _openingNotification = false;
+  bool _showingLocationDialog = false;
+  WorkerLocationTrackingStatus? _lastLocationNotice;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _session = SessionController(widget.dependencies)..start();
     _session.addListener(_handleSessionChange);
     _notificationSubscription = widget.dependencies.notifications.alertIntents
         .listen(_handleNotificationIntent);
     unawaited(widget.dependencies.notifications.initialize());
+    _locationSubscription = widget.dependencies.workerLocationTracker.states
+        .listen(_handleLocationState);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(widget.dependencies.workerLocationTracker.refreshPermission());
+    }
+  }
+
+  void _handleLocationState(WorkerLocationTrackingState state) {
+    final worker = _session.profile?.role == UserRole.worker;
+    if (!worker || !mounted) return;
+    if (state.status == WorkerLocationTrackingStatus.needsBackgroundExplanation) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_showBackgroundLocationExplanation());
+      });
+      return;
+    }
+    if (state.status == WorkerLocationTrackingStatus.background) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_showBatteryOptimizationAdviceOnce());
+      });
+    }
+    if (state.message != null && _lastLocationNotice != state.status) {
+      _lastLocationNotice = state.status;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _messengerKey.currentState?.showSnackBar(
+          SnackBar(content: Text(state.message!)),
+        );
+      });
+    }
+  }
+
+  Future<void> _showBackgroundLocationExplanation() async {
+    if (_showingLocationDialog || !mounted) return;
+    _showingLocationDialog = true;
+    final context = _navigatorKey.currentContext;
+    if (context == null) {
+      _showingLocationDialog = false;
+      return;
+    }
+    final proceed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Share location for safety'),
+        content: const Text(
+          'SafeHelmet collects and shares your location with authorized '
+          'supervisors for safety alerts, including while the app is in the '
+          'background or the screen is locked. On the next screen, choose '
+          '“Allow all the time”.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    _showingLocationDialog = false;
+    if (proceed == true) {
+      await widget.dependencies.workerLocationTracker.requestBackgroundAccess();
+    } else {
+      await widget.dependencies.workerLocationTracker.refreshPermission();
+    }
+  }
+
+  Future<void> _showBatteryOptimizationAdviceOnce() async {
+    if (_showingLocationDialog || !mounted) return;
+    final preferences = await SharedPreferences.getInstance();
+    const key = 'worker_location_battery_advice_shown';
+    if (preferences.getBool(key) == true) return;
+    await preferences.setBool(key, true);
+    final context = _navigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
+    _showingLocationDialog = true;
+    final openSettings = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Keep safety tracking active'),
+        content: const Text(
+          'For reliable updates on Xiaomi, Oppo, Vivo and Realme phones, set '
+          'SafeHelmet battery use to “No restrictions”.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Open battery settings'),
+          ),
+        ],
+      ),
+    );
+    _showingLocationDialog = false;
+    if (openSettings == true) {
+      await widget.dependencies.workerLocationTracker.openBatterySettings();
+    }
   }
 
   void _handleSessionChange() {
@@ -287,8 +405,11 @@ class _MyAppState extends State<MyApp> {
   @override
   void dispose() {
     _session.removeListener(_handleSessionChange);
+    WidgetsBinding.instance.removeObserver(this);
     _notificationSubscription?.cancel();
+    _locationSubscription?.cancel();
     widget.dependencies.notifications.dispose();
+    widget.dependencies.workerLocationTracker.dispose();
     _mapFocusController.dispose();
     _session.dispose();
     super.dispose();

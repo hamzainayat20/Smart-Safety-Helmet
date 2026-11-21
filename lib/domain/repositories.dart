@@ -97,6 +97,103 @@ abstract interface class ReadingRepository {
   );
 }
 
+abstract interface class WorkerLocationRepository {
+  Stream<Map<String, WorkerLocation>> watchLatestLocations(UserProfile actor);
+
+  Future<void> writeLocation({
+    required UserProfile actor,
+    required Helmet helmet,
+    required double latitudeDegrees,
+    required double longitudeDegrees,
+    required double accuracyM,
+  });
+}
+
+final class NoopWorkerLocationRepository implements WorkerLocationRepository {
+  const NoopWorkerLocationRepository();
+
+  @override
+  Stream<Map<String, WorkerLocation>> watchLatestLocations(UserProfile actor) =>
+      Stream.value(const {});
+
+  @override
+  Future<void> writeLocation({
+    required UserProfile actor,
+    required Helmet helmet,
+    required double latitudeDegrees,
+    required double longitudeDegrees,
+    required double accuracyM,
+  }) async {}
+}
+
+enum WorkerLocationTrackingStatus {
+  idle,
+  needsBackgroundExplanation,
+  foregroundOnly,
+  background,
+  permissionDenied,
+  serviceDisabled,
+  unavailable,
+}
+
+final class WorkerLocationTrackingState {
+  const WorkerLocationTrackingState(this.status, {this.message});
+
+  final WorkerLocationTrackingStatus status;
+  final String? message;
+}
+
+abstract interface class WorkerLocationTracker {
+  Stream<WorkerLocationTrackingState> get states;
+  WorkerLocationTrackingState get state;
+
+  Future<void> activate({
+    required UserProfile actor,
+    required Helmet helmet,
+  });
+
+  Future<void> requestBackgroundAccess();
+  Future<void> refreshPermission();
+  Future<void> openBatterySettings();
+  Future<void> deactivate();
+  void dispose();
+}
+
+final class NoopWorkerLocationTracker implements WorkerLocationTracker {
+  const NoopWorkerLocationTracker();
+
+  static const _state = WorkerLocationTrackingState(
+    WorkerLocationTrackingStatus.unavailable,
+  );
+
+  @override
+  WorkerLocationTrackingState get state => _state;
+
+  @override
+  Stream<WorkerLocationTrackingState> get states => Stream.value(_state);
+
+  @override
+  Future<void> activate({
+    required UserProfile actor,
+    required Helmet helmet,
+  }) async {}
+
+  @override
+  Future<void> requestBackgroundAccess() async {}
+
+  @override
+  Future<void> refreshPermission() async {}
+
+  @override
+  Future<void> openBatterySettings() async {}
+
+  @override
+  Future<void> deactivate() async {}
+
+  @override
+  void dispose() {}
+}
+
 abstract interface class AssessmentRepository {
   Stream<Map<String, SafetyAssessment>> watchLatestAssessments(
     UserProfile actor,

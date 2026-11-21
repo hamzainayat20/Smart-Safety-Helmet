@@ -581,6 +581,45 @@ final class GPSLocation {
   };
 }
 
+final class WorkerLocation {
+  WorkerLocation({
+    required this.latitudeDegrees,
+    required this.longitudeDegrees,
+    required this.accuracyM,
+    required DateTime updatedAt,
+    required this.source,
+  }) : updatedAt = updatedAt.toUtc() {
+    GPSLocation._validateCoordinates(latitudeDegrees, longitudeDegrees);
+    if (!accuracyM.isFinite || accuracyM < 0) {
+      throw ModelValidationException('Location accuracy must be non-negative');
+    }
+    if (source != 'phoneGps') {
+      throw ModelValidationException('Worker location source must be phoneGps');
+    }
+  }
+
+  final double latitudeDegrees;
+  final double longitudeDegrees;
+  final double accuracyM;
+  final DateTime updatedAt;
+  final String source;
+
+  GPSLocation get mapLocation => GPSLocation(
+    latitudeDegrees: latitudeDegrees,
+    longitudeDegrees: longitudeDegrees,
+    capturedAt: updatedAt,
+    isLastKnown: false,
+  );
+
+  factory WorkerLocation.fromJson(Map<String, dynamic> json) => WorkerLocation(
+    latitudeDegrees: _requiredNumber(json, 'latitude', min: -90, max: 90),
+    longitudeDegrees: _requiredNumber(json, 'longitude', min: -180, max: 180),
+    accuracyM: _requiredNumber(json, 'accuracyM', min: 0),
+    updatedAt: _requiredTimestamp(json, 'updatedAt'),
+    source: _requiredString(json, 'source'),
+  );
+}
+
 /// The nine fall-model window features computed on the helmet (telemetry
 /// schema 2.0), with the window that produced them. Feature names and order
 /// follow the fall model metadata; values are exactly as the device sent them.

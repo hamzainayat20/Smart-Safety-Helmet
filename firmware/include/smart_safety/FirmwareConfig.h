@@ -20,6 +20,18 @@ inline constexpr bool kMq7DigitalEnabled = false;
 inline constexpr std::uint32_t kMq7IntervalMs = 1000;
 inline constexpr std::uint8_t kMq7Oversample = 8;
 
+// MQ-135 analog output (AO) via its own 10 k (top) / 20 k (bottom) divider
+// into GPIO35 (ADC1, input-only, usable while Wi-Fi is active). Raw ADC only;
+// it reuses the MQ-7 interval (kMq7IntervalMs) and oversampling
+// (kMq7Oversample). MQ-135 DO stays disconnected. Set kMq135AnalogEnabled to
+// false while no MQ-135 is wired: a floating GPIO35 reads noise, not a rail.
+inline constexpr int kMq135AnalogPin = 35;
+inline constexpr bool kMq135AnalogEnabled = true;
+// MQ heaters need time after power-on before raw readings settle. Telemetry
+// reports mq7WarmUp / mq135WarmUp = true until this much time since boot,
+// then false so the backend gas model is allowed to run.
+inline constexpr std::uint32_t kGasWarmUpMs = 180000;  // 3 minutes
+
 inline constexpr std::uint32_t kDhtIntervalMs = 2000;
 // DHT22 is wired to GPIO4 (with pull-up) on the current prototype. Polling an
 // ABSENT DHT22 stalls core 1 with interrupts disabled (see DHT22Sensor.h) and

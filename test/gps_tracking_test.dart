@@ -7,7 +7,6 @@ import 'package:smart_safety/data/mock_repositories.dart';
 import 'package:smart_safety/domain/models.dart';
 import 'package:smart_safety/domain/repositories.dart';
 import 'package:smart_safety/gps_map_page.dart';
-import 'package:smart_safety/platform/maps/maps_runtime.dart';
 
 void main() {
   final now = DateTime.utc(2026, 8, 3, 12);
@@ -67,7 +66,7 @@ void main() {
     },
   );
 
-  test('GPS fixes older than 30 seconds are marked stale', () async {
+  test('GPS fixes older than two minutes are marked stale', () async {
     final fixture = _Fixture(now);
     final source = fixture.data.readings['H-03']!;
     fixture.data.readings['H-03'] = _copyReading(
@@ -77,7 +76,7 @@ void main() {
         latitudeDegrees: 31.4629,
         longitudeDegrees: 74.3181,
         hdop: 1.1,
-        capturedAt: now.subtract(const Duration(seconds: 31)),
+        capturedAt: now.subtract(const Duration(minutes: 2, seconds: 1)),
         isLastKnown: false,
       ),
       gpsStatus: GpsStatus.valid,
@@ -154,102 +153,6 @@ void main() {
     fixture.dispose();
   });
 
-  testWidgets(
-    'missing Web API key shows fallback with valid location data and no map',
-    (tester) async {
-      final fixture = _Fixture(now);
-      final dashboard = fixture.dashboard('supervisor-demo');
-      final focus = MapFocusController();
-      var mapBuildCount = 0;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            backgroundColor: const Color(0xFF07152C),
-            body: GpsMapPage(
-              viewModel: dashboard,
-              onSignOut: () {},
-              focusController: focus,
-              mapsRuntime: const _ImmediateMapsRuntime(
-                MapsRuntimeResult(
-                  MapsRuntimeStatus.missingKey,
-                  message: 'No Web Maps API key is configured.',
-                ),
-              ),
-              mapBuilder: (_, _, _, _, _) {
-                mapBuildCount += 1;
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 20));
-
-      expect(
-        find.text('Interactive map unavailable in development mode.'),
-        findsOneWidget,
-      );
-      expect(find.text('Schematic preview — not a real map.'), findsOneWidget);
-      expect(find.byKey(const Key('schematic-map-preview')), findsOneWidget);
-      expect(find.textContaining('31.4629'), findsOneWidget);
-      expect(find.textContaining('H-02'), findsWidgets);
-      expect(mapBuildCount, 0);
-
-      await tester.tap(find.textContaining('H-02').last);
-      await tester.pump();
-      expect(focus.current?.helmetId, 'H-02');
-      expect(focus.current?.reason, MapFocusReason.workerSelection);
-
-      await tester.pumpWidget(const SizedBox.shrink());
-      focus.dispose();
-      dashboard.dispose();
-      fixture.dispose();
-    },
-  );
-
-  testWidgets('Web initialization failure produces controlled fallback', (
-    tester,
-  ) async {
-    final fixture = _Fixture(now);
-    final dashboard = fixture.dashboard('supervisor-demo');
-    final focus = MapFocusController();
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          backgroundColor: const Color(0xFF07152C),
-          body: GpsMapPage(
-            viewModel: dashboard,
-            onSignOut: () {},
-            focusController: focus,
-            mapsRuntime: const _ThrowingMapsRuntime(),
-            mapBuilder: (_, _, _, _, _) =>
-                throw StateError('Google Map must not be constructed'),
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 20));
-
-    expect(
-      find.text('Interactive map unavailable in development mode.'),
-      findsOneWidget,
-    );
-    expect(
-      find.text('Interactive map initialization failed safely.'),
-      findsOneWidget,
-    );
-    expect(tester.takeException(), isNull);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    focus.dispose();
-    dashboard.dispose();
-    fixture.dispose();
-  });
-
   testWidgets('permission denial is shown without constructing Google Map', (
     tester,
   ) async {
@@ -287,22 +190,6 @@ void main() {
     dashboard.dispose();
     fixture.dispose();
   });
-}
-
-final class _ImmediateMapsRuntime implements MapsRuntime {
-  const _ImmediateMapsRuntime(this.result);
-  final MapsRuntimeResult result;
-
-  @override
-  Future<MapsRuntimeResult> initialize() async => result;
-}
-
-final class _ThrowingMapsRuntime implements MapsRuntime {
-  const _ThrowingMapsRuntime();
-
-  @override
-  Future<MapsRuntimeResult> initialize() async =>
-      throw StateError('Simulated Web Maps script failure');
 }
 
 final class _Fixture {

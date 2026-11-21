@@ -14,6 +14,8 @@ abstract final class RealtimeDatabasePaths {
   static String site(String siteId) => 'sites/$siteId';
   static String helmetMeta(String helmetId) => 'helmets/$helmetId/meta';
   static String helmetCurrent(String helmetId) => 'helmets/$helmetId/current';
+  static String helmetWorkerLocation(String helmetId) =>
+      'helmets/$helmetId/workerLocation';
   static String helmetCurrentAssessment(String helmetId) =>
       'helmets/$helmetId/currentAssessment';
   static String helmetReadings(String helmetId) => 'readings/$helmetId';
@@ -378,6 +380,60 @@ final class RtdbReadingRepository implements ReadingRepository {
       }),
     );
   }
+}
+
+final class RtdbWorkerLocationRepository implements WorkerLocationRepository {
+  RtdbWorkerLocationRepository({FirebaseDatabase? database})
+    : _database = database ?? FirebaseDatabase.instance;
+
+  final FirebaseDatabase _database;
+
+  WorkerLocation? _parse(DataSnapshot snapshot, String helmetId) {
+    final data = _optionalRecord(
+      snapshot.value,
+      RealtimeDatabasePaths.helmetWorkerLocation(helmetId),
+    );
+    return data == null ? null : WorkerLocation.fromJson(data);
+  }
+
+  @override
+  Stream<Map<String, WorkerLocation>> watchLatestLocations(UserProfile actor) {
+    final sources = <String, Stream<WorkerLocation?>>{
+      for (final helmetId in _authorizedHelmetIds(actor))
+        helmetId: _guardStream(
+          _database
+              .ref(RealtimeDatabasePaths.helmetWorkerLocation(helmetId))
+              .onValue
+              .map((event) => _parse(event.snapshot, helmetId)),
+        ),
+    };
+    return _combineByKey(sources);
+  }
+
+  @override
+  Future<void> writeLocation({
+    required UserProfile actor,
+    required Helmet helmet,
+    required double latitudeDegrees,
+    required double longitudeDegrees,
+    required double accuracyM,
+  }) => _guardRequest(() async {
+    if (actor.role != UserRole.worker || !userCanAccessHelmet(actor, helmet)) {
+      throw const RepositoryAccessException(
+        'FORBIDDEN_SCOPE',
+        'Workers may update only their assigned helmet location.',
+      );
+    }
+    await _database
+        .ref(RealtimeDatabasePaths.helmetWorkerLocation(helmet.helmetId))
+        .set({
+          'latitude': latitudeDegrees,
+          'longitude': longitudeDegrees,
+          'accuracyM': accuracyM,
+          'updatedAt': ServerValue.timestamp,
+          'source': 'phoneGps',
+        });
+  });
 }
 
 final class RtdbAssessmentRepository implements AssessmentRepository {

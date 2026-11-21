@@ -28,6 +28,8 @@ final class AppDependencies {
     required this.sites,
     required this.helmets,
     required this.readings,
+    this.workerLocations = const NoopWorkerLocationRepository(),
+    this.workerLocationTracker = const NoopWorkerLocationTracker(),
     this.assessments = const NoopAssessmentRepository(),
     required this.alerts,
     required this.configuration,
@@ -45,6 +47,8 @@ final class AppDependencies {
   final SiteRepository sites;
   final HelmetRepository helmets;
   final ReadingRepository readings;
+  final WorkerLocationRepository workerLocations;
+  final WorkerLocationTracker workerLocationTracker;
   final AssessmentRepository assessments;
   final AlertRepository alerts;
   final ConfigurationRepository configuration;

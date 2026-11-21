@@ -46,10 +46,12 @@ def _fall(request: AssessmentRequest, registry: ModelRegistry):
 
 
 def _gas(request: AssessmentRequest, registry: ModelRegistry):
-    gas_faults = {
-        "mq7ReadFailed", "mq7Uncalibrated", "mq7HeaterStateUnknown",
-        "mq135ReadFailed", "mq135Uncalibrated", "mq135HeaterStateUnknown",
-    }
+    # Only a missing reading blocks the gas model. mq*Uncalibrated and
+    # mq*HeaterStateUnknown are always reported by the helmet (raw ADC, no ppm
+    # calibration, heater not monitored); the model was trained on uncalibrated
+    # raw values, so those faults stay in sensorFaults but do not block it.
+    # Warm-up and the out-of-distribution check below still apply.
+    gas_faults = {"mq7ReadFailed", "mq135ReadFailed"}
     gas_fault = any(fault in gas_faults for fault in request.sensorFaults)
     if gas_fault or request.mq7WarmUp or request.mq135WarmUp:
         reasons = ["GAS_MODEL_UNAVAILABLE"]

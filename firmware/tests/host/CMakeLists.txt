@@ -13,6 +13,7 @@ add_executable(
   ../../src/MotionPipeline.cpp
   ../../src/MpuSensor.cpp
   ../../src/MQ7AnalogSensor.cpp
+  ../../src/MQ135AnalogSensor.cpp
   ../../src/FallDetectionEngine.cpp
   ../../src/EventIdGenerator.cpp
   ../../src/TelemetryBuilder.cpp

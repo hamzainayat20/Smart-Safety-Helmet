@@ -2,18 +2,21 @@
 
 namespace smart_safety {
 
-SensorManager::SensorManager(DHT22Sensor& dht22, MQ7AnalogSensor& mq7)
-    : dht22_(dht22), mq7_(mq7) {}
+SensorManager::SensorManager(DHT22Sensor& dht22, MQ7AnalogSensor& mq7,
+                             MQ135AnalogSensor* mq135)
+    : dht22_(dht22), mq7_(mq7), mq135_(mq135) {}
 
 void SensorManager::begin(std::uint32_t nowMs) {
   dht22_.begin(nowMs);
   mq7_.begin(nowMs);
+  if (mq135_ != nullptr) mq135_->begin(nowMs);
 }
 
 SensorPollResult SensorManager::poll(std::uint32_t nowMs) {
   SensorPollResult result;
   result.dhtUpdated = dht22_.poll(nowMs, snapshot_);
   result.mq7Updated = mq7_.poll(nowMs, snapshot_);
+  if (mq135_ != nullptr) result.mq135Updated = mq135_->poll(nowMs, snapshot_);
   return result;
 }
 

@@ -19,7 +19,9 @@ final class AlertDetailViewModel extends ChangeNotifier {
   final AppDependencies dependencies;
 
   StreamSubscription<SafetyAlert?>? _subscription;
+  StreamSubscription<Map<String, WorkerLocation>>? _locationSubscription;
   SafetyAlert? _alert;
+  Map<String, WorkerLocation> _locations = const {};
   RepositoryAccessException? _error;
   bool _loading = true;
   bool _markingViewed = false;
@@ -28,6 +30,8 @@ final class AlertDetailViewModel extends ChangeNotifier {
   bool _retryingDelivery = false;
 
   SafetyAlert? get alert => _alert;
+  WorkerLocation? get latestPhoneLocation =>
+      _alert == null ? null : _locations[_alert!.helmetId];
   bool get isLoading => _loading;
   String? get errorMessage => _error?.message;
   bool get permissionDenied => _error?.code == 'PERMISSION_DENIED';
@@ -69,6 +73,15 @@ final class AlertDetailViewModel extends ChangeNotifier {
             notifyListeners();
           },
         );
+    if (profile.role == UserRole.supervisor ||
+        profile.role == UserRole.administrator) {
+      _locationSubscription = dependencies.workerLocations
+          .watchLatestLocations(profile)
+          .listen((locations) {
+            _locations = locations;
+            notifyListeners();
+          });
+    }
   }
 
   Future<void> _markViewedAfterBackendConfirmation() async {
@@ -164,8 +177,11 @@ final class AlertDetailViewModel extends ChangeNotifier {
 
   Future<void> clearSensitiveState() async {
     await _subscription?.cancel();
+    await _locationSubscription?.cancel();
     _subscription = null;
+    _locationSubscription = null;
     _alert = null;
+    _locations = const {};
     _loading = false;
     notifyListeners();
   }
@@ -174,6 +190,7 @@ final class AlertDetailViewModel extends ChangeNotifier {
   void dispose() {
     dependencies.sensitiveData.unregister(clearSensitiveState);
     _subscription?.cancel();
+    _locationSubscription?.cancel();
     super.dispose();
   }
 }

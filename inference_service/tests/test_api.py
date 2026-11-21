@@ -73,14 +73,30 @@ def test_sensor_fault_does_not_claim_safe(client, valid_payload):
     body = response.json()
     assert body["fall"] == {"status": "unavailable"}
     assert body["overallRisk"] != "safe"
-def test_uncalibrated_gas_sensor_does_not_run_model(client, valid_payload):
-    valid_payload["sensorFaults"].append("mq7Uncalibrated")
+def test_uncalibrated_gas_sensors_still_run_model(client, valid_payload):
+    valid_payload["sensorFaults"].extend([
+        "mq7Uncalibrated", "mq7HeaterStateUnknown",
+        "mq135Uncalibrated", "mq135HeaterStateUnknown",
+    ])
     response = client.post("/v1/assess", json=valid_payload)
     assert response.status_code == 200
     body = response.json()
-    assert body["gas"] == {"status": "unavailable"}
-    assert body["overallRisk"] == "unknown"
-    assert "SENSOR_FAULT" in body["reasonCodes"]
+    assert body["gas"]["status"] == "evaluated"
+    assert body["gas"]["classification"] in {"Mixture", "NoGas", "Perfume", "Smoke"}
+    assert "GAS_SENSOR_WARMING" not in body["reasonCodes"]
+
+
+def test_failed_gas_read_does_not_run_model(client, valid_payload):
+    for fault in ("mq7ReadFailed", "mq135ReadFailed"):
+        payload = dict(valid_payload)
+        payload["sensorFaults"] = list(valid_payload["sensorFaults"]) + [fault]
+        payload["mq7Raw" if fault == "mq7ReadFailed" else "mq135Raw"] = None
+        response = client.post("/v1/assess", json=payload)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["gas"] == {"status": "unavailable"}
+        assert body["overallRisk"] == "unknown"
+        assert "SENSOR_FAULT" in body["reasonCodes"]
 
 
 def test_missing_fall_window_with_explicit_fault_is_assessed_as_unavailable(

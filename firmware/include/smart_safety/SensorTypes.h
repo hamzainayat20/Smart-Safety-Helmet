@@ -129,6 +129,8 @@ struct SensorSnapshot {
   std::optional<double> heatIndexC;
   std::optional<MotionSample> motion;  // gyro is offset-corrected when present
   std::optional<int> mq7Raw;           // raw 12-bit ADC count, never ppm
+  std::optional<int> mq135Raw;         // raw 12-bit ADC count, never ppm
+  bool gasWarmingUp{true};             // MQ heaters still warming after boot
   std::optional<FallWindowEvidence> fallWindow;
   FallStatus fallStatus{FallStatus::kNotEvaluated};  // local diagnostic only
 };
@@ -140,8 +142,8 @@ inline std::vector<std::string> deriveSensorFaults(
       // MQ-7 raw ADC is never calibrated and heater cycling is not monitored.
       SensorFault::kMq7Uncalibrated,
       SensorFault::kMq7HeaterStateUnknown,
-      // MQ-135 hardware is absent from this helmet build.
-      SensorFault::kMq135ReadFailed,
+      // MQ-135 raw ADC is never calibrated and heater cycling is not
+      // monitored. mq135ReadFailed is derived below from an absent reading.
       SensorFault::kMq135Uncalibrated,
       SensorFault::kMq135HeaterStateUnknown,
       // GPS and battery monitoring hardware are absent.
@@ -153,6 +155,9 @@ inline std::vector<std::string> deriveSensorFaults(
     faults.push_back(SensorFault::kDhtReadFailed);
   }
   if (!snapshot.mq7Raw.has_value()) faults.push_back(SensorFault::kMq7ReadFailed);
+  if (!snapshot.mq135Raw.has_value()) {
+    faults.push_back(SensorFault::kMq135ReadFailed);
+  }
   if (!snapshot.fallWindow.has_value() ||
       !snapshot.fallWindow->windowEndTimestampMs.has_value()) {
     faults.push_back(SensorFault::kFallWindowUnavailable);

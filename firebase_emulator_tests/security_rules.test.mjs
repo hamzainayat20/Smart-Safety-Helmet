@@ -311,6 +311,62 @@ describe('Realtime Database authorization', () => {
   });
 });
 
+describe('Worker phone location authorization', () => {
+  const phoneLocation = {
+    latitude: 31.5204,
+    longitude: 74.3587,
+    accuracyM: 8,
+    updatedAt: { '.sv': 'timestamp' },
+    source: 'phoneGps',
+  };
+
+  test('worker writes own valid location but not another worker location', async () => {
+    const worker = environment.authenticatedContext(
+      'worker1', verified('worker'),
+    ).database();
+    await assertSucceeds(set(
+      ref(worker, 'helmets/helmetA/workerLocation'), phoneLocation,
+    ));
+    await assertFails(set(
+      ref(worker, 'helmets/helmetB/workerLocation'), phoneLocation,
+    ));
+  });
+
+  test('authorized supervisor reads and unauthorized supervisor is denied', async () => {
+    await environment.withSecurityRulesDisabled(async (context) => {
+      await set(ref(context.database(), 'helmets/helmetA/workerLocation'), {
+        latitude: 31.5204,
+        longitude: 74.3587,
+        accuracyM: 8,
+        updatedAt: 1000,
+        source: 'phoneGps',
+      });
+    });
+    const authorized = environment.authenticatedContext(
+      'supervisor1', verified('supervisor'),
+    ).database();
+    const unauthorized = environment.authenticatedContext(
+      'worker2', verified('supervisor'),
+    ).database();
+    await assertSucceeds(getDatabaseValue(
+      ref(authorized, 'helmets/helmetA/workerLocation'),
+    ));
+    await assertFails(getDatabaseValue(
+      ref(unauthorized, 'helmets/helmetA/workerLocation'),
+    ));
+  });
+
+  test('invalid phone coordinates are denied', async () => {
+    const worker = environment.authenticatedContext(
+      'worker1', verified('worker'),
+    ).database();
+    await assertFails(set(
+      ref(worker, 'helmets/helmetA/workerLocation'),
+      { ...phoneLocation, latitude: 91 },
+    ));
+  });
+});
+
 describe('Legacy Firestore profile authorization', () => {
   test('trusted unverified worker can read only their own active profile', async () => {
     const firestore = environment.authenticatedContext('worker1', {
