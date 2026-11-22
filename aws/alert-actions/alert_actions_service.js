@@ -135,6 +135,28 @@ function validToken(body) {
   return token;
 }
 
+// Schema 2.0 telemetry (helmets/{id}/current) carries raw readings only; the
+// safe/unsafe verdict lives in helmets/{id}/currentAssessment. Build the state
+// that resolveTransition()/isHazardCleared() expect from both records. Legacy
+// records that already carry severity/fallState are passed through unchanged.
+export function resolutionStateFrom(telemetry, assessment) {
+  if (telemetry && typeof telemetry.severity === 'string') return telemetry;
+  if (!telemetry && !assessment) return null;
+  const overall = assessment?.overallRisk;
+  const sameEvent = !telemetry || !assessment ||
+    typeof telemetry.eventId !== 'string' || telemetry.eventId === assessment.eventId;
+  const severity = overall === 'safe' && sameEvent ? 'safe' : (overall ?? 'unknown');
+  return {
+    ...(telemetry ?? {}),
+    serverReceivedAt: Number.isSafeInteger(telemetry?.serverReceivedAt)
+      ? telemetry.serverReceivedAt
+      : assessment?.sourceServerReceivedAt,
+    severity,
+    fallState: severity === 'safe' ? 'normal' : 'not cleared',
+    gasWarmUp: telemetry?.mq7WarmUp === true || telemetry?.mq135WarmUp === true,
+  };
+}
+
 export function createAlertActionsHandler({
   auth,
   database,
@@ -168,7 +190,16 @@ export function createAlertActionsHandler({
             event, body, auth, database, ['supervisor', 'administrator'],
           );
           const note = sanitizeResolutionNote(body.resolutionNote);
-          const current = (await database.ref(`helmets/${actor.alert.helmetId}/current`).get()).val();
+          const helmetPath = `helmets/${actor.alert.helmetId}`;
+          const [telemetry, assessment] = await Promise.all([
+            database.ref(`${helmetPath}/current`).get().then((snapshot) => snapshot.val()),
+            database.ref(`${helmetPath}/currentAssessment`).get().then((snapshot) => snapshot.val()),
+          ]);
+          const current = resolutionStateFrom(telemetry, assessment);
+          // Validate before the transaction: an AlertValidationError thrown
+          // inside an RTDB transaction does not reach the error mapper intact,
+          // so the client only saw a generic "could not be completed".
+          resolveTransition(actor.alert, actor.uid, note, current, clock());
           result = await actor.reference.transaction((alert) =>
             alert ? resolveTransition(alert, actor.uid, note, current, clock()) : alert);
           return jsonResponse(200, { alert: result.snapshot.val() });

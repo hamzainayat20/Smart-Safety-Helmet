@@ -185,3 +185,40 @@ test('routes on the deployed named stage (rawPath includes /staging)', async () 
   const fallback = await createAlertActionsHandler(dependencies())(noRouteKey);
   assert.equal(fallback.statusCode, 200, fallback.body);
 });
+
+test('resolves with schema 2.0 telemetry when the current assessment is safe', async () => {
+  const fixture = data();
+  fixture.alerts.alert1.status = 'acknowledged';
+  fixture.helmets.helmet1.current = {
+    schemaVersion: '2.0', eventId: 'e9', serverReceivedAt: now - 5000,
+    temperatureC: 26, mq7WarmUp: false, mq135WarmUp: false,
+  };
+  fixture.helmets.helmet1.currentAssessment = {
+    eventId: 'e9', sourceServerReceivedAt: now - 5000, overallRisk: 'safe',
+  };
+  const response = await createAlertActionsHandler(dependencies(new FakeDatabase(fixture)))(
+    request('/v1/alerts/resolve', 'supervisor-token', {
+      alertId: 'alert1', resolutionNote: 'Worker checked and safe',
+    }),
+  );
+  assert.equal(response.statusCode, 200, response.body);
+  assert.equal(JSON.parse(response.body).alert.status, 'resolved');
+});
+
+test('resolve returns a readable 409 while the schema 2.0 assessment is not safe', async () => {
+  const fixture = data();
+  fixture.alerts.alert1.status = 'acknowledged';
+  fixture.helmets.helmet1.current = {
+    schemaVersion: '2.0', eventId: 'e9', serverReceivedAt: now - 5000,
+  };
+  fixture.helmets.helmet1.currentAssessment = {
+    eventId: 'e9', sourceServerReceivedAt: now - 5000, overallRisk: 'critical',
+  };
+  const response = await createAlertActionsHandler(dependencies(new FakeDatabase(fixture)))(
+    request('/v1/alerts/resolve', 'supervisor-token', {
+      alertId: 'alert1', resolutionNote: 'Trying too early',
+    }),
+  );
+  assert.equal(response.statusCode, 409, response.body);
+  assert.equal(JSON.parse(response.body).error.code, 'failed-precondition');
+});
