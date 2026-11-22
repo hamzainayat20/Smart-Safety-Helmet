@@ -478,33 +478,14 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
   }
 
   Future<void> _requestResolution(BuildContext context) async {
-    final controller = TextEditingController();
+    // The dialog owns its TextEditingController and disposes it in its own
+    // State.dispose(), after the close animation has finished. Disposing it
+    // here right after showDialog returned crashed while the TextField was
+    // still mounted ('_dependents.isEmpty' assertion).
     final note = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Resolve incident?'),
-        content: TextField(
-          controller: controller,
-          maxLength: 500,
-          decoration: const InputDecoration(
-            labelText: 'Resolution note',
-            hintText: 'Describe the verified response and cleared condition',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Check and resolve'),
-          ),
-        ],
-      ),
+      builder: (_) => const _ResolutionNoteDialog(),
     );
-    controller.dispose();
     if (note == null || note.isEmpty || !context.mounted) return;
     try {
       await _viewModel.resolve(note);
@@ -542,6 +523,47 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
       }
     }
   }
+}
+
+class _ResolutionNoteDialog extends StatefulWidget {
+  const _ResolutionNoteDialog();
+
+  @override
+  State<_ResolutionNoteDialog> createState() => _ResolutionNoteDialogState();
+}
+
+class _ResolutionNoteDialogState extends State<_ResolutionNoteDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Resolve incident?'),
+    content: TextField(
+      key: const Key('resolution-note-field'),
+      controller: _controller,
+      maxLength: 500,
+      decoration: const InputDecoration(
+        labelText: 'Resolution note',
+        hintText: 'Describe the verified response and cleared condition',
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _controller.text.trim()),
+        child: const Text('Check and resolve'),
+      ),
+    ],
+  );
 }
 
 class _PinnedActions extends StatelessWidget {
