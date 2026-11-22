@@ -11,7 +11,8 @@ const String unavailableLabel = 'Unavailable';
 /// Plain-language description of a device-reported sensor fault.
 String sensorFaultLabel(SensorFault fault) => switch (fault) {
   SensorFault.mpuReadFailed => 'Motion sensor read failed',
-  SensorFault.dhtReadFailed => 'Temperature/humidity sensor (DHT22) not reading',
+  SensorFault.dhtReadFailed =>
+    'Temperature/humidity sensor (DHT22) not reading',
   SensorFault.mq7ReadFailed => 'Gas sensor (MQ-7) not reading',
   SensorFault.mq7Uncalibrated => 'Gas sensor (MQ-7) not calibrated',
   SensorFault.mq7HeaterStateUnknown => 'Gas sensor (MQ-7) heater state unknown',
@@ -54,7 +55,10 @@ class LiveSensorDiagnostics extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final updated = formatRelativeTime(reading.serverReceivedAt, nowUtc: nowUtc);
+    final updated = formatRelativeTime(
+      reading.serverReceivedAt,
+      nowUtc: nowUtc,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -67,12 +71,7 @@ class LiveSensorDiagnostics extends StatelessWidget {
         ResponsiveTileGrid(
           minTileWidth: 300,
           maxColumns: 2,
-          children: [
-            _environment(),
-            _motion(),
-            _fallWindow(context),
-            _gas(),
-          ],
+          children: [_environment(), _motion(), _fallWindow(context), _gas()],
         ),
         const SizedBox(height: AppSpacing.md),
         _deviceHealth(updated),
@@ -86,7 +85,10 @@ class LiveSensorDiagnostics extends StatelessWidget {
     children: [
       KeyValueRow(
         label: 'Temperature',
-        value: formatMeasurement(reading.temperatureC, SensorUnit.degreesCelsius),
+        value: formatMeasurement(
+          reading.temperatureC,
+          SensorUnit.degreesCelsius,
+        ),
       ),
       KeyValueRow(
         label: 'Humidity',
@@ -225,7 +227,23 @@ class LiveSensorDiagnostics extends StatelessWidget {
               : '${reading.mq135Raw} (Raw ADC — not ppm)',
         ),
         KeyValueRow(
-          label: 'AI gas class',
+          label: 'Rise vs normal',
+          value: assessment?.mq7Ratio != null && assessment?.mq135Ratio != null
+              ? 'MQ-7 ×${assessment!.mq7Ratio!.toStringAsFixed(2)}, '
+                    'MQ-135 ×${assessment!.mq135Ratio!.toStringAsFixed(2)}'
+              : 'Baseline learning',
+        ),
+        KeyValueRow(
+          label: 'Threshold status',
+          value: switch (assessment?.gasThresholdRisk) {
+            AssessmentRisk.critical => 'Critical rise',
+            AssessmentRisk.warning => 'Warning rise',
+            AssessmentRisk.safe => 'Normal',
+            _ => 'Learning normal baseline',
+          },
+        ),
+        KeyValueRow(
+          label: 'AI gas type (experimental)',
           value: producedGas == null
               ? unavailableLabel
               : _gasSummary(producedGas),

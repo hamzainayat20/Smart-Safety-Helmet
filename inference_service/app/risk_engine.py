@@ -62,6 +62,20 @@ def _gas(request: AssessmentRequest, registry: ModelRegistry):
         return GasUnavailable(), "unknown", reasons
     if request.mq7Raw is None or request.mq135Raw is None:
         return GasUnavailable(), "unknown", ["GAS_MODEL_UNAVAILABLE"]
+    if request.gasInputMode == "baselineLearning":
+        return GasUnavailable(), "unknown", ["GAS_BASELINE_LEARNING"]
+
+    threshold_risk: Risk = "safe"
+    threshold_reasons: list[str] = []
+    if request.mq135Ratio >= 1.35 or request.mq7Ratio >= 1.25:
+        threshold_risk = "critical"
+        threshold_reasons.append("GAS_RISE_CRITICAL")
+    elif (
+        request.gasThresholdConsecutive >= 2
+        and (request.mq135Ratio >= 1.20 or request.mq7Ratio >= 1.12)
+    ):
+        threshold_risk = "warning"
+        threshold_reasons.append("GAS_RISE_WARNING")
 
     classification, confidence, probabilities = registry.predict_gas(request.mq7Raw, request.mq135Raw)
     out_of_distribution = registry.gas_is_out_of_distribution(request.mq7Raw, request.mq135Raw)
@@ -73,19 +87,21 @@ def _gas(request: AssessmentRequest, registry: ModelRegistry):
         outOfDistribution=out_of_distribution,
     )
     if out_of_distribution:
-        return result, "unknown", ["GAS_INPUT_OUT_OF_DISTRIBUTION"]
+        return result, _combine([threshold_risk, "unknown"]), threshold_reasons + ["GAS_INPUT_OUT_OF_DISTRIBUTION"]
     code = {
         "Smoke": "GAS_SMOKE", "Mixture": "GAS_MIXTURE",
         "Perfume": "GAS_PERFUME", "NoGas": "GAS_NO_GAS",
     }[classification]
     if confidence < 0.55:
-        return result, "unknown", ["GAS_MODEL_UNAVAILABLE", code]
+        return result, _combine([threshold_risk, "unknown"]), threshold_reasons + ["GAS_MODEL_UNAVAILABLE", code]
     if classification == "Smoke":
-        return result, "critical" if confidence >= 0.8 else "warning", [code]
-    if classification == "Mixture":
-        return result, "warning", [code]
+        model_risk: Risk = "critical" if confidence >= 0.8 else "warning"
+    elif classification == "Mixture":
+        model_risk = "warning"
+    else:
+        model_risk = "safe"
     # Perfume is retained for traceability but is not considered dangerous alone.
-    return result, "safe", [code]
+    return result, _combine([threshold_risk, model_risk]), threshold_reasons + [code]
 
 
 def _component_risk(value: float | None, *, warning_at: float, critical_at: float) -> ComponentRisk:
@@ -160,11 +176,19 @@ def _recommendations(overall: Risk, reasons: list[str]) -> list[str]:
         codes += ["MOVE_TO_FRESH_AIR", "FOLLOW_SITE_EMERGENCY_PROTOCOL"]
     elif "GAS_MIXTURE" in reasons:
         codes += ["INVESTIGATE_GAS_SOURCE", "VENTILATE_AREA_IF_SAFE"]
+    if "GAS_RISE_CRITICAL" in reasons:
+        codes += ["MOVE_TO_FRESH_AIR", "FOLLOW_SITE_EMERGENCY_PROTOCOL"]
+    elif "GAS_RISE_WARNING" in reasons:
+        codes += ["INVESTIGATE_GAS_SOURCE", "VENTILATE_AREA_IF_SAFE"]
     if "GAS_SENSOR_WARMING" in reasons:
         codes.append("ALLOW_GAS_SENSOR_WARMUP")
-    if any(code.endswith("_CRITICAL") for code in reasons):
+    environment_reasons = {
+        "TEMPERATURE_WARNING", "TEMPERATURE_CRITICAL", "HUMIDITY_WARNING",
+        "HUMIDITY_CRITICAL", "HEAT_INDEX_WARNING", "HEAT_INDEX_CRITICAL",
+    }.intersection(reasons)
+    if any(code.endswith("_CRITICAL") for code in environment_reasons):
         codes += ["MOVE_TO_SAFE_TEMPERATURE", "HYDRATE_AND_COOL_DOWN"]
-    elif any(code.endswith("_WARNING") for code in reasons):
+    elif any(code.endswith("_WARNING") for code in environment_reasons):
         codes += ["HYDRATE_AND_COOL_DOWN", "MONITOR_ENVIRONMENT"]
     if overall == "unknown": codes.append("VERIFY_SENSORS")
     elif overall == "safe": codes.append("NO_IMMEDIATE_ACTION")
@@ -177,6 +201,11 @@ def assess(request: AssessmentRequest, registry: ModelRegistry) -> SafetyAssessm
     environment, environment_risk, environment_reasons = _environment(request)
     overall = _combine([fall_risk, gas_risk, environment_risk])
     reasons = sorted(set(fall_reasons + gas_reasons + environment_reasons))
+    gas_threshold_risk: Risk = (
+        "critical" if "GAS_RISE_CRITICAL" in gas_reasons else
+        "warning" if "GAS_RISE_WARNING" in gas_reasons else
+        "unknown" if request.gasInputMode == "baselineLearning" else "safe"
+    )
     return SafetyAssessment(
         assessmentId=request.eventId, eventId=request.eventId,
         helmetId=request.helmetId, deviceTimestamp=request.deviceTimestamp,
@@ -185,6 +214,11 @@ def assess(request: AssessmentRequest, registry: ModelRegistry) -> SafetyAssessm
         # The trusted backend receipt timestamp is stable across ingestion repair.
         assessedAt=request.serverReceivedAt,
         modelBundleVersion=registry.bundle_version,
+        gasInputMode=request.gasInputMode,
+        mq7Ratio=request.mq7Ratio,
+        mq135Ratio=request.mq135Ratio,
+        gasThresholdRisk=gas_threshold_risk,
+        gasThresholdConsecutive=request.gasThresholdConsecutive,
         fall=fall, gas=gas, environment=environment, overallRisk=overall,
         reasonCodes=reasons,
         recommendationCodes=_recommendations(overall, reasons),

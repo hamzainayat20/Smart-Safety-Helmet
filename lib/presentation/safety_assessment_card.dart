@@ -58,8 +58,7 @@ class SafetyAssessmentCard extends StatelessWidget {
           ),
           if (!compact && current != null) ...[
             const SizedBox(height: AppSpacing.md),
-            for (final check in _checks(current))
-              _CheckRow(check: check),
+            for (final check in _checks(current)) _CheckRow(check: check),
             const SizedBox(height: AppSpacing.sm),
             Wrap(
               spacing: AppSpacing.sm,
@@ -218,12 +217,13 @@ class SafetyAssessmentCard extends StatelessWidget {
   static bool _isPartialCheck(SafetyAssessment value) =>
       _fallCheck(value).status == SafetyStatus.normal &&
       _environmentCheck(value).status == SafetyStatus.normal &&
+      value.gasThresholdRisk == AssessmentRisk.unknown &&
       value.gas.status != InferenceStatus.completed;
 
   List<_Check> _checks(SafetyAssessment value) => [
     _fallCheck(value),
     _environmentCheck(value),
-    _gasCheck(value, reading),
+    ..._gasChecks(value, reading),
   ];
 
   static _Check _fallCheck(SafetyAssessment value) {
@@ -271,20 +271,60 @@ class SafetyAssessmentCard extends StatelessWidget {
       return const _Check('Environment', 'Critical', SafetyStatus.critical);
     }
     if (risks.contains(ComponentRisk.warning)) {
-      return const _Check('Environment', 'Needs attention', SafetyStatus.warning);
+      return const _Check(
+        'Environment',
+        'Needs attention',
+        SafetyStatus.warning,
+      );
     }
     return const _Check('Environment', 'Normal', SafetyStatus.normal);
   }
 
-  static _Check _gasCheck(SafetyAssessment value, SensorReading? reading) {
+  static List<_Check> _gasChecks(
+    SafetyAssessment value,
+    SensorReading? reading,
+  ) {
+    final ratios = value.mq7Ratio != null && value.mq135Ratio != null
+        ? 'MQ-7 ×${value.mq7Ratio!.toStringAsFixed(2)}, '
+              'MQ-135 ×${value.mq135Ratio!.toStringAsFixed(2)}'
+        : 'Baseline learning';
+    final threshold = switch (value.gasThresholdRisk) {
+      AssessmentRisk.critical => const _Check(
+        'Threshold status',
+        'Critical rise',
+        SafetyStatus.critical,
+      ),
+      AssessmentRisk.warning => const _Check(
+        'Threshold status',
+        'Warning rise',
+        SafetyStatus.warning,
+      ),
+      AssessmentRisk.safe => const _Check(
+        'Threshold status',
+        'Normal',
+        SafetyStatus.normal,
+      ),
+      AssessmentRisk.unknown => const _Check(
+        'Threshold status',
+        'Learning normal baseline',
+        SafetyStatus.unknown,
+      ),
+    };
     final gas = value.gas;
     if (gas.status == InferenceStatus.completed &&
         gas.gasClass != GasClass.unknown) {
-      return _Check('Gas', _gasClassLabel(gas.gasClass), switch (gas.gasClass) {
-        GasClass.smoke => SafetyStatus.critical,
-        GasClass.mixture => SafetyStatus.warning,
-        _ => SafetyStatus.normal,
-      });
+      final label = gas.outOfDistribution
+          ? '${_gasClassLabel(gas.gasClass)} · outside training range'
+          : _gasClassLabel(gas.gasClass);
+      return [
+        _Check('Rise vs normal', ratios, threshold.status),
+        threshold,
+        _Check('AI gas type (experimental)', label, switch (gas.gasClass) {
+          GasClass.smoke => SafetyStatus.critical,
+          GasClass.mixture => SafetyStatus.warning,
+          _ => SafetyStatus.normal,
+        }),
+      ];
     }
     final faults = reading?.sensorFaults ?? const <SensorFault>[];
     final reason = faults.contains(SensorFault.mq135ReadFailed)
@@ -294,7 +334,15 @@ class SafetyAssessmentCard extends StatelessWidget {
         : gas.status == InferenceStatus.completed
         ? 'no classification produced'
         : 'gas sensors not ready';
-    return _Check('Gas', 'Not assessed — $reason', SafetyStatus.unknown);
+    return [
+      _Check('Rise vs normal', ratios, threshold.status),
+      threshold,
+      _Check(
+        'AI gas type (experimental)',
+        'Not assessed — $reason',
+        SafetyStatus.unknown,
+      ),
+    ];
   }
 
   static String _gasClassLabel(GasClass gasClass) => switch (gasClass) {

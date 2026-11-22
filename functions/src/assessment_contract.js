@@ -10,6 +10,9 @@ export const ASSESSMENT_REASON_CODES = Object.freeze([
   'GAS_MODEL_UNAVAILABLE',
   'GAS_INPUT_OUT_OF_DISTRIBUTION',
   'GAS_SENSOR_WARMING',
+  'GAS_BASELINE_LEARNING',
+  'GAS_RISE_WARNING',
+  'GAS_RISE_CRITICAL',
   'TEMPERATURE_WARNING',
   'TEMPERATURE_CRITICAL',
   'HUMIDITY_WARNING',
@@ -44,6 +47,11 @@ const topLevelFields = Object.freeze([
   'sourceServerReceivedAt',
   'assessedAt',
   'modelBundleVersion',
+  'gasInputMode',
+  'mq7Ratio',
+  'mq135Ratio',
+  'gasThresholdRisk',
+  'gasThresholdConsecutive',
   'fall',
   'gas',
   'environment',
@@ -92,10 +100,25 @@ function requireExactFields(value, fields, field) {
     if (!expected.has(key)) fail('UNKNOWN_FIELD', `${field} contains an unknown field.`, `${field}.${key}`);
   }
   for (const key of fields) {
-    if (!Object.hasOwn(value, key) || value[key] === null) {
+    if (!Object.hasOwn(value, key)) {
       fail('MISSING_FIELD', `${field} is missing a required field.`, `${field}.${key}`);
     }
   }
+}
+
+function requireNullableRatio(value, field) {
+  if (value === null) return null;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    fail('INVALID_RANGE', `${field} must be null or a non-negative number.`, field);
+  }
+  return value;
+}
+
+function requireNonNegativeInteger(value, field) {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    fail('INVALID_RANGE', `${field} must be a non-negative integer.`, field);
+  }
+  return value;
 }
 
 function requireId(value, field) {
@@ -282,6 +305,22 @@ export function validateSafetyAssessment(value) {
     sourceServerReceivedAt,
     assessedAt,
     modelBundleVersion: requireVersion(input.modelBundleVersion, 'modelBundleVersion'),
+    gasInputMode: requireEnum(
+      input.gasInputMode,
+      ['baselineLearning', 'baselineMapped'],
+      'gasInputMode',
+    ),
+    mq7Ratio: requireNullableRatio(input.mq7Ratio, 'mq7Ratio'),
+    mq135Ratio: requireNullableRatio(input.mq135Ratio, 'mq135Ratio'),
+    gasThresholdRisk: requireEnum(
+      input.gasThresholdRisk,
+      ['unknown', 'safe', 'warning', 'critical'],
+      'gasThresholdRisk',
+    ),
+    gasThresholdConsecutive: requireNonNegativeInteger(
+      input.gasThresholdConsecutive,
+      'gasThresholdConsecutive',
+    ),
     fall: validateFall(input.fall),
     gas: validateGas(input.gas),
     environment: validateEnvironment(input.environment),
@@ -293,6 +332,28 @@ export function validateSafetyAssessment(value) {
       'recommendationCodes',
     ),
   };
+
+  if ((output.gasInputMode === 'baselineLearning' &&
+       (output.mq7Ratio !== null || output.mq135Ratio !== null ||
+        output.gasThresholdRisk !== 'unknown' || output.gas.status !== 'unavailable')) ||
+      (output.gasInputMode === 'baselineMapped' &&
+       (output.mq7Ratio === null || output.mq135Ratio === null ||
+        output.gasThresholdRisk === 'unknown'))) {
+    fail(
+      'INVALID_VALUE',
+      'Gas baseline mode must agree with ratios and threshold risk.',
+      'gasInputMode',
+    );
+  }
+  if ((output.gasThresholdRisk === 'critical' && output.overallRisk !== 'critical') ||
+      (output.gasThresholdRisk === 'warning' &&
+       !['warning', 'critical'].includes(output.overallRisk))) {
+    fail(
+      'INVALID_VALUE',
+      'Overall risk must include the baseline threshold risk.',
+      'overallRisk',
+    );
+  }
 
   if (output.overallRisk === 'safe' &&
       (output.fall.status !== 'evaluated' ||

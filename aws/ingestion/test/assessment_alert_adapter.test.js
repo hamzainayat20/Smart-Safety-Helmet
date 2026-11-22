@@ -120,6 +120,11 @@ function inferenceClientReturning(risk) {
         sourceServerReceivedAt: record.serverReceivedAt,
         assessedAt: record.serverReceivedAt + 10,
         modelBundleVersion: 'phase-a.1',
+        gasInputMode: record.gasInputMode ?? 'baselineLearning',
+        mq7Ratio: record.mq7Ratio ?? null,
+        mq135Ratio: record.mq135Ratio ?? null,
+        gasThresholdRisk: record.gasInputMode === 'baselineMapped' ? 'safe' : 'unknown',
+        gasThresholdConsecutive: record.gasThresholdConsecutive ?? 0,
         fall: { status: 'evaluated', probability: 0.00003, threshold: 0.46, modelVersion: '2.0' },
         gas: { status: 'unavailable' },
         environment: {

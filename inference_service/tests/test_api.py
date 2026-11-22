@@ -15,6 +15,8 @@ def test_assessment_matches_canonical_backend_contract(client, valid_payload):
     assert set(body) == {
         "schemaVersion", "assessmentId", "eventId", "helmetId", "sourceSchemaVersion",
         "deviceTimestamp", "sourceServerReceivedAt", "assessedAt", "modelBundleVersion",
+        "gasInputMode", "mq7Ratio", "mq135Ratio", "gasThresholdRisk",
+        "gasThresholdConsecutive",
         "fall", "gas", "environment", "overallRisk", "reasonCodes", "recommendationCodes",
     }
     assert body["schemaVersion"] == "1.0"
@@ -23,6 +25,9 @@ def test_assessment_matches_canonical_backend_contract(client, valid_payload):
     assert body["fall"]["status"] == "evaluated"
     assert 0 <= body["fall"]["probability"] <= 1
     assert body["gas"]["status"] == "evaluated"
+    assert body["gas"]["classification"] == "NoGas"
+    assert body["gasInputMode"] == "baselineMapped"
+    assert body["gasThresholdRisk"] == "safe"
     assert set(body["gas"]["probabilities"]) == {"Mixture", "NoGas", "Perfume", "Smoke"}
     assert abs(sum(body["gas"]["probabilities"].values()) - 1) < 0.001
 

@@ -52,6 +52,10 @@ class AssessmentRequest(StrictModel):
     mq135Raw: Annotated[int | None, Field(default=None, ge=0, le=4095)]
     mq7WarmUp: bool
     mq135WarmUp: bool
+    gasInputMode: Literal["baselineLearning", "baselineMapped"]
+    mq7Ratio: Annotated[float | None, Field(default=None, ge=0, allow_inf_nan=False)]
+    mq135Ratio: Annotated[float | None, Field(default=None, ge=0, allow_inf_nan=False)]
+    gasThresholdConsecutive: Annotated[int, Field(ge=0)]
     temperatureC: Annotated[float | None, Field(default=None, ge=-40, le=80, allow_inf_nan=False)]
     humidityPct: Annotated[float | None, Field(default=None, ge=0, le=100, allow_inf_nan=False)]
     heatIndexC: Annotated[float | None, Field(default=None, ge=-100, le=250, allow_inf_nan=False)]
@@ -88,6 +92,14 @@ class AssessmentRequest(StrictModel):
             and self.windowEndTimestamp > self.deviceTimestamp
         ):
             raise ValueError("windowEndTimestamp must not exceed deviceTimestamp")
+        if self.gasInputMode == "baselineLearning" and (
+            self.mq7Ratio is not None or self.mq135Ratio is not None
+        ):
+            raise ValueError("baselineLearning inputs must not contain gas ratios")
+        if self.gasInputMode == "baselineMapped" and (
+            self.mq7Ratio is None or self.mq135Ratio is None
+        ):
+            raise ValueError("baselineMapped inputs require both gas ratios")
         return self
 
 
@@ -146,6 +158,11 @@ class SafetyAssessment(StrictModel):
     sourceServerReceivedAt: EpochMilliseconds
     assessedAt: EpochMilliseconds
     modelBundleVersion: Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$")]
+    gasInputMode: Literal["baselineLearning", "baselineMapped"]
+    mq7Ratio: Annotated[float | None, Field(default=None, ge=0, allow_inf_nan=False)]
+    mq135Ratio: Annotated[float | None, Field(default=None, ge=0, allow_inf_nan=False)]
+    gasThresholdRisk: Literal["unknown", "safe", "warning", "critical"]
+    gasThresholdConsecutive: Annotated[int, Field(ge=0)]
     fall: FallEvaluated | FallUnavailable
     gas: GasEvaluated | GasUnavailable
     environment: EnvironmentAssessment

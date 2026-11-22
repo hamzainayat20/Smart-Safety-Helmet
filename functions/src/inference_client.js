@@ -62,10 +62,16 @@ export function assessmentInputFromTelemetry(record) {
     'firmwareVersion', 'sensorFaults', 'mq7Raw', 'mq135Raw', 'mq7WarmUp',
     'mq135WarmUp', 'temperatureC', 'humidityPct', 'heatIndexC', 'fallFeatures',
     'samplingRateHz', 'windowSamples', 'windowEndTimestamp',
+    'gasInputMode', 'mq7Ratio', 'mq135Ratio', 'gasThresholdConsecutive',
   ];
-  return Object.fromEntries(fields
+  const input = Object.fromEntries(fields
     .filter((field) => record[field] !== undefined)
     .map((field) => [field, structuredClone(record[field])]));
+  input.gasInputMode ??= 'baselineLearning';
+  input.mq7Ratio ??= null;
+  input.mq135Ratio ??= null;
+  input.gasThresholdConsecutive ??= 0;
+  return input;
 }
 
 export function createInferenceClient({

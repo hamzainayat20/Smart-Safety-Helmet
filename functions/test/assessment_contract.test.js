@@ -23,6 +23,11 @@ function assessment(overrides = {}) {
     sourceServerReceivedAt: now - 50,
     assessedAt: now,
     modelBundleVersion: 'phase-a.1',
+    gasInputMode: 'baselineMapped',
+    mq7Ratio: 1,
+    mq135Ratio: 1,
+    gasThresholdRisk: 'safe',
+    gasThresholdConsecutive: 0,
     fall: {
       status: 'evaluated',
       probability: 0.1,

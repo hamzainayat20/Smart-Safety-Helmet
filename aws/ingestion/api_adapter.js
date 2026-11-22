@@ -1,5 +1,6 @@
 import { createAlertFromAssessment } from '../../functions/src/assessment_alerts.js';
 import { createAssessmentProcessor } from '../../functions/src/assessment_pipeline.js';
+import { prepareGasAssessmentInput } from '../../functions/src/gas_baseline.js';
 import { createTelemetryIngestionHandler } from '../../functions/src/telemetry_ingestion.js';
 
 function requestBody(event) {
@@ -71,7 +72,12 @@ export function createAwsTelemetryHandler({
 
     let assessmentStatus = 'notApplicable';
     try {
-      const result = await assess(source);
+      const assessmentInput = await prepareGasAssessmentInput({
+        database,
+        reading: source,
+        updateBaseline: state.body?.duplicate !== true,
+      });
+      const result = await assess(assessmentInput);
       assessmentStatus = result.status;
       if (result.status === 'completed' && result.assessment) {
         try {

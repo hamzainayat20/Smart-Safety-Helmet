@@ -20,6 +20,11 @@ Map<String, dynamic> canonicalAssessment({
   'sourceServerReceivedAt': 1100,
   'assessedAt': 1200,
   'modelBundleVersion': 'phase-a-1',
+  'gasInputMode': 'baselineMapped',
+  'mq7Ratio': 1.0,
+  'mq135Ratio': 1.0,
+  'gasThresholdRisk': 'safe',
+  'gasThresholdConsecutive': 0,
   'fall': {
     'status': 'evaluated',
     'probability': 0.04,
@@ -73,6 +78,9 @@ void main() {
       expect(assessment.overallRisk, AssessmentRisk.safe);
       expect(assessment.displayRisk, AssessmentRisk.safe);
       expect(assessment.gas.gasClass, GasClass.noGas);
+      expect(assessment.gasInputMode, 'baselineMapped');
+      expect(assessment.mq7Ratio, 1.0);
+      expect(assessment.gasThresholdRisk, AssessmentRisk.safe);
       expect(assessment.gas.probabilities[GasClass.smoke], 0.09);
       expect(assessment.matchesReading(reading()), isTrue);
       expect(assessment.recommendations, [
@@ -99,6 +107,8 @@ void main() {
     expect(json.containsKey('status'), isFalse);
     expect((json['fall'] as Map)['status'], 'evaluated');
     expect((json['gas'] as Map)['classification'], 'NoGas');
+    expect(json['gasInputMode'], 'baselineMapped');
+    expect(json['mq135Ratio'], 1.0);
     expect((json['environment'] as Map)['temperatureRisk'], 'normal');
   });
 

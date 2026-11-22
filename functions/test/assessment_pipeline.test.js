@@ -38,6 +38,8 @@ function assessment(overrides = {}) {
     helmetId: 'helmet001', sourceSchemaVersion: '2.0',
     deviceTimestamp: now - 100, sourceServerReceivedAt: now - 50,
     assessedAt: now - 50, modelBundleVersion: 'phase-a.1',
+    gasInputMode: 'baselineMapped', mq7Ratio: 1, mq135Ratio: 1,
+    gasThresholdRisk: 'safe', gasThresholdConsecutive: 0,
     fall: { status: 'evaluated', probability: 0.1, threshold: 0.46, modelVersion: '2.0' },
     gas: {
       status: 'evaluated', classification: 'NoGas', confidence: 0.9,
@@ -105,6 +107,7 @@ test('inference input includes only the canonical model fields', () => {
     'firmwareVersion', 'sensorFaults', 'mq7Raw', 'mq135Raw', 'mq7WarmUp',
     'mq135WarmUp', 'temperatureC', 'humidityPct', 'heatIndexC', 'fallFeatures',
     'samplingRateHz', 'windowSamples', 'windowEndTimestamp',
+    'gasInputMode', 'mq7Ratio', 'mq135Ratio', 'gasThresholdConsecutive',
   ]);
 });
 

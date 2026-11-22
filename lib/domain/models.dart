@@ -1063,7 +1063,9 @@ final class AlertNotificationDelivery {
   final DateTime? lastAttemptAt;
 
   bool get noAuthorizedTokens => lastErrorCode == 'NO_AUTHORIZED_TOKENS';
-  bool get failed => !inProgress && !noAuthorizedTokens &&
+  bool get failed =>
+      !inProgress &&
+      !noAuthorizedTokens &&
       (failureCount > 0 || lastErrorCode != null);
 
   factory AlertNotificationDelivery.fromJson(Map<String, dynamic> json) =>
@@ -1780,6 +1782,11 @@ final class SafetyAssessment {
     required this.temperatureRisk,
     required this.humidityRisk,
     required this.heatIndexRisk,
+    this.gasInputMode = 'baselineLearning',
+    this.mq7Ratio,
+    this.mq135Ratio,
+    this.gasThresholdRisk = AssessmentRisk.unknown,
+    this.gasThresholdConsecutive = 0,
     List<String> reasonCodes = const [],
     List<String> recommendationCodes = const [],
     this.modelBundleVersion,
@@ -1797,6 +1804,20 @@ final class SafetyAssessment {
     if (assessmentId != sourceEventId) {
       throw ModelValidationException(
         'assessmentId must equal the source eventId',
+      );
+    }
+    if (!const {'baselineLearning', 'baselineMapped'}.contains(gasInputMode)) {
+      throw ModelValidationException('gasInputMode has an unsupported value');
+    }
+    if ([
+      mq7Ratio,
+      mq135Ratio,
+    ].whereType<double>().any((value) => !value.isFinite || value < 0)) {
+      throw ModelValidationException('Gas ratios must be non-negative numbers');
+    }
+    if (gasThresholdConsecutive < 0) {
+      throw ModelValidationException(
+        'gasThresholdConsecutive must be non-negative',
       );
     }
   }
@@ -1840,6 +1861,11 @@ final class SafetyAssessment {
   final ComponentRisk temperatureRisk;
   final ComponentRisk humidityRisk;
   final ComponentRisk heatIndexRisk;
+  final String gasInputMode;
+  final double? mq7Ratio;
+  final double? mq135Ratio;
+  final AssessmentRisk gasThresholdRisk;
+  final int gasThresholdConsecutive;
   final List<String> reasonCodes;
   final List<String> recommendationCodes;
   final String? modelBundleVersion;
@@ -1974,6 +2000,19 @@ final class SafetyAssessment {
         'heatIndexRisk',
         ComponentRisk.values,
       ),
+      gasInputMode: _optionalString(json, 'gasInputMode') ?? 'baselineLearning',
+      mq7Ratio: json['mq7Ratio'] is num
+          ? (json['mq7Ratio'] as num).toDouble()
+          : null,
+      mq135Ratio: json['mq135Ratio'] is num
+          ? (json['mq135Ratio'] as num).toDouble()
+          : null,
+      gasThresholdRisk: json['gasThresholdRisk'] == null
+          ? AssessmentRisk.unknown
+          : _enumValue(json, 'gasThresholdRisk', AssessmentRisk.values),
+      gasThresholdConsecutive: json['gasThresholdConsecutive'] is int
+          ? json['gasThresholdConsecutive'] as int
+          : 0,
       reasonCodes: _stringList(json, 'reasonCodes'),
       recommendationCodes: _stringList(json, 'recommendationCodes'),
       modelBundleVersion: _optionalString(json, 'modelBundleVersion'),
@@ -1990,6 +2029,11 @@ final class SafetyAssessment {
     'sourceServerReceivedAt': sourceServerReceivedAt.millisecondsSinceEpoch,
     'assessedAt': assessedAt.millisecondsSinceEpoch,
     'overallRisk': overallRisk.name,
+    'gasInputMode': gasInputMode,
+    'mq7Ratio': mq7Ratio,
+    'mq135Ratio': mq135Ratio,
+    'gasThresholdRisk': gasThresholdRisk.name,
+    'gasThresholdConsecutive': gasThresholdConsecutive,
     'fall': fall.toJson(),
     'gas': gas.toJson(),
     'environment': {

@@ -53,6 +53,10 @@ SafetyAssessment _assessment({
   String environmentRisk = 'normal',
   String overallRisk = 'unknown',
   List<String> reasons = const ['GAS_MODEL_UNAVAILABLE', 'SENSOR_FAULT'],
+  String gasInputMode = 'baselineLearning',
+  double? mq7Ratio,
+  double? mq135Ratio,
+  String gasThresholdRisk = 'unknown',
 }) => SafetyAssessment.fromJson({
   'schemaVersion': '1.0',
   'assessmentId': 'helmet001_5ede0669_3',
@@ -63,6 +67,11 @@ SafetyAssessment _assessment({
   'sourceServerReceivedAt': _received,
   'assessedAt': _received + 300,
   'modelBundleVersion': 'phase-a-1',
+  'gasInputMode': gasInputMode,
+  'mq7Ratio': mq7Ratio,
+  'mq135Ratio': mq135Ratio,
+  'gasThresholdRisk': gasThresholdRisk,
+  'gasThresholdConsecutive': 0,
   'fall': {
     'status': 'evaluated',
     'probability': fallProbability,
@@ -100,7 +109,10 @@ void main() {
     expect(find.textContaining('Gas was not assessed'), findsOneWidget);
     expect(find.text('Fall: No fall detected (0.0%)'), findsOneWidget);
     expect(find.text('Environment: Normal'), findsOneWidget);
-    expect(find.text('Gas: Not assessed — MQ-135 not fitted'), findsOneWidget);
+    expect(
+      find.text('AI gas type (experimental): Not assessed — MQ-135 not fitted'),
+      findsOneWidget,
+    );
     expect(find.text('SAFE'), findsNothing);
     expect(find.text('UNKNOWN'), findsNothing);
   });
@@ -111,7 +123,10 @@ void main() {
       _reading(const ['batteryUnavailable', 'gpsUnavailable', 'mq7ReadFailed']),
       _assessment(),
     );
-    expect(find.text('Gas: Not assessed — MQ-7 not reading'), findsOneWidget);
+    expect(
+      find.text('AI gas type (experimental): Not assessed — MQ-7 not reading'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a missing DHT22 is not a partial check', (tester) async {
@@ -167,7 +182,11 @@ void main() {
       tester,
       _reading(const ['batteryUnavailable', 'gpsUnavailable']),
       _assessment(
-        overallRisk: 'safe',
+        overallRisk: 'critical',
+        gasInputMode: 'baselineMapped',
+        mq7Ratio: 1.22,
+        mq135Ratio: 1.40,
+        gasThresholdRisk: 'critical',
         reasons: const ['GAS_NO_GAS'],
         gas: {
           'status': 'evaluated',
@@ -184,7 +203,12 @@ void main() {
         },
       ),
     );
-    expect(find.text('Gas: No gas'), findsOneWidget);
-    expect(find.text('SAFE'), findsOneWidget);
+    expect(
+      find.text('Rise vs normal: MQ-7 ×1.22, MQ-135 ×1.40'),
+      findsOneWidget,
+    );
+    expect(find.text('Threshold status: Critical rise'), findsOneWidget);
+    expect(find.text('AI gas type (experimental): No gas'), findsOneWidget);
+    expect(find.text('CRITICAL'), findsOneWidget);
   });
 }

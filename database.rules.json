@@ -40,6 +40,16 @@
           ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && root.child('users').child(auth.uid).child('siteIds').child(root.child('helmets').child($helmetId).child('meta').child('siteId').val()).val() == true && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true) || ((auth.token.role == 'worker' || root.child('users').child(auth.uid).child('role').val() == 'worker') && root.child('helmets').child($helmetId).child('meta').child('assignedWorkerId').val() == auth.uid && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true))",
           ".write": false
         },
+        "gasBaseline": {
+          ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && root.child('users').child(auth.uid).child('siteIds').child(root.child('helmets').child($helmetId).child('meta').child('siteId').val()).val() == true && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true) || ((auth.token.role == 'worker' || root.child('users').child(auth.uid).child('role').val() == 'worker') && root.child('helmets').child($helmetId).child('meta').child('assignedWorkerId').val() == auth.uid && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true))",
+          ".write": false,
+          ".validate": "newData.hasChildren(['mq7', 'mq135', 'samples', 'updatedAt'])",
+          "mq7": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 4095" },
+          "mq135": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 4095" },
+          "samples": { ".validate": "newData.isNumber() && newData.val() >= 1" },
+          "updatedAt": { ".validate": "newData.isNumber() && newData.val() <= now" },
+          "$other": { ".validate": false }
+        },
         "workerLocation": {
           ".read": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'administrator' || (auth.token.role == 'supervisor' && root.child('users').child(auth.uid).child('siteIds').child(root.child('helmets').child($helmetId).child('meta').child('siteId').val()).val() == true && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true) || ((auth.token.role == 'worker' || root.child('users').child(auth.uid).child('role').val() == 'worker') && root.child('helmets').child($helmetId).child('meta').child('assignedWorkerId').val() == auth.uid && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true))",
           ".write": "auth != null && root.child('users').child(auth.uid).child('active').val() == true && (auth.token.role == 'worker' || root.child('users').child(auth.uid).child('role').val() == 'worker') && root.child('helmets').child($helmetId).child('meta').child('assignedWorkerId').val() == auth.uid && root.child('users').child(auth.uid).child('authorizedHelmetIds').child($helmetId).val() == true",

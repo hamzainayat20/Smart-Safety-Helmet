@@ -27,6 +27,8 @@ function assessment() {
     helmetId: 'helmet001', sourceSchemaVersion: '2.0',
     deviceTimestamp: now - 100, sourceServerReceivedAt: now, assessedAt: now,
     modelBundleVersion: 'phase-a.1',
+    gasInputMode: 'baselineMapped', mq7Ratio: 1, mq135Ratio: 1,
+    gasThresholdRisk: 'safe', gasThresholdConsecutive: 0,
     fall: { status: 'evaluated', probability: 0.1, threshold: 0.46, modelVersion: '2.0' },
     gas: {
       status: 'evaluated', classification: 'NoGas', confidence: 0.9,
@@ -58,6 +60,8 @@ test('private Lambda client sends canonical input and validates output', async (
   assert.equal(command.input.FunctionName, 'smart-safety-staging-inference');
   const sent = JSON.parse(Buffer.from(command.input.Payload).toString('utf8'));
   assert.equal(sent.eventId, 'event_1');
+  assert.equal(sent.gasInputMode, 'baselineLearning');
+  assert.equal(sent.mq7Ratio, null);
   assert.equal(sent.connectivity, undefined);
 });
 

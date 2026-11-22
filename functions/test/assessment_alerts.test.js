@@ -240,6 +240,25 @@ test('gas alerts never carry ppm and need a confident in-range classification', 
   );
 });
 
+test('baseline threshold rises create gas alerts even when the model says NoGas', () => {
+  const candidate = alertCandidateFromAssessment(assessment({
+    overallRisk: 'critical',
+    gasThresholdRisk: 'critical',
+    mq7Ratio: 1.22,
+    mq135Ratio: 1.40,
+    reasonCodes: ['GAS_NO_GAS', 'GAS_RISE_CRITICAL'],
+    gas: {
+      status: 'evaluated', classification: 'NoGas', confidence: 0.95,
+      probabilities: { Mixture: 0.01, NoGas: 0.95, Perfume: 0.02, Smoke: 0.02 },
+      modelVersion: '1.0', outOfDistribution: false,
+    },
+  }), reading());
+  assert.equal(candidate.alertType, 'gas');
+  assert.equal(candidate.severity, 'critical');
+  assert.equal(candidate.evidence.mq7Ratio, 1.22);
+  assert.equal(candidate.evidence.mq135Ratio, 1.40);
+});
+
 test('repeated readings of the same hazard are suppressed during the cooldown', async () => {
   const database = new FakeDatabase();
   let time = now;

@@ -36,7 +36,11 @@ function hazardsFrom(assessment, reading) {
   }
 
   const gas = assessment.gas;
-  if (gas?.status === 'evaluated' && gas.outOfDistribution === false &&
+  if (assessment.gasThresholdRisk === 'critical' && reasons.includes('GAS_RISE_CRITICAL')) {
+    hazards.push({ alertType: 'gas', severity: 'critical' });
+  } else if (assessment.gasThresholdRisk === 'warning' && reasons.includes('GAS_RISE_WARNING')) {
+    hazards.push({ alertType: 'gas', severity: 'warning' });
+  } else if (gas?.status === 'evaluated' && gas.outOfDistribution === false &&
       !reasons.includes('GAS_MODEL_UNAVAILABLE') && gas.confidence >= 0.55) {
     if (gas.classification === 'Smoke' && reasons.includes('GAS_SMOKE')) {
       hazards.push({ alertType: 'gas', severity: gas.confidence >= 0.8 ? 'critical' : 'warning' });
@@ -84,6 +88,8 @@ function evidenceFrom(assessment, reading) {
   if (assessment.gas?.status === 'evaluated' && isFinite(assessment.gas.confidence)) {
     evidence.gasConfidence = assessment.gas.confidence;
   }
+  if (isFinite(assessment.mq7Ratio)) evidence.mq7Ratio = assessment.mq7Ratio;
+  if (isFinite(assessment.mq135Ratio)) evidence.mq135Ratio = assessment.mq135Ratio;
   return evidence;
 }
 

@@ -12,6 +12,10 @@ const Map<String, String> _reasonText = {
   'GAS_PERFUME': 'The gas model classified the air as a scented vapour.',
   'GAS_SENSOR_WARMING':
       'The gas sensor is still warming up, so gas results are excluded.',
+  'GAS_BASELINE_LEARNING':
+      'The helmet is learning its normal clean-air gas baseline.',
+  'GAS_RISE_WARNING': 'Gas readings stayed above the warning rise threshold.',
+  'GAS_RISE_CRITICAL': 'A gas reading exceeded the critical rise threshold.',
   'GAS_SMOKE': 'The gas model classified the air as smoke.',
   'HEAT_INDEX_WARNING': 'The heat index is above the warning limit.',
   'HEAT_INDEX_CRITICAL': 'The heat index is above the critical limit.',
