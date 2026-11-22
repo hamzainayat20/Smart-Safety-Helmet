@@ -12,6 +12,7 @@ import { canonicalAlertId } from './alert_logic.js';
 // many 5-second readings does not flood the alert list. A more severe level
 // (warning -> critical) is always alerted immediately.
 export const ASSESSMENT_ALERT_COOLDOWN_MS = 5 * 60 * 1000;
+export const ALERT_PHONE_LOCATION_MAX_AGE_MS = 2 * 60 * 1000;
 
 const SEVERITY_RANK = Object.freeze({ warning: 1, critical: 2 });
 // Tie-break order when several hazards share the same severity.
@@ -103,8 +104,28 @@ export function alertCandidateFromAssessment(assessment, reading) {
 }
 
 /** Builds the alert record in the exact shape the Flutter app parses. */
-export function buildAssessmentAlertRecord({ candidate, reading, meta, now }) {
+function freshPhoneLocation(value, serverReceivedAt) {
+  if (!value || value.source !== 'phoneGps' ||
+      !isFinite(value.latitude) || value.latitude < -90 || value.latitude > 90 ||
+      !isFinite(value.longitude) || value.longitude < -180 || value.longitude > 180 ||
+      (value.latitude === 0 && value.longitude === 0) ||
+      !isFinite(value.accuracyM) || value.accuracyM < 0 ||
+      !Number.isSafeInteger(value.updatedAt) ||
+      Math.abs(serverReceivedAt - value.updatedAt) > ALERT_PHONE_LOCATION_MAX_AGE_MS) {
+    return null;
+  }
+  return {
+    latitude: value.latitude,
+    longitude: value.longitude,
+    accuracyM: value.accuracyM,
+    source: 'phoneGps',
+    capturedAt: value.updatedAt,
+  };
+}
+
+export function buildAssessmentAlertRecord({ candidate, reading, meta, workerLocation, now }) {
   const alertId = canonicalAlertId(reading.helmetId, reading.eventId);
+  const location = freshPhoneLocation(workerLocation, now);
   return {
     schemaVersion: '1.0',
     alertId,
@@ -122,6 +143,7 @@ export function buildAssessmentAlertRecord({ candidate, reading, meta, now }) {
     evidence: candidate.evidence,
     deviceTimestamp: reading.deviceTimestamp,
     serverReceivedAt: now,
+    ...(location ? { location } : {}),
     status: 'created',
   };
 }
@@ -144,13 +166,23 @@ export async function createAlertFromAssessment({
     return { status: 'skipped', reason: 'INVALID_SOURCE' };
   }
 
-  const meta = (await database.ref(`helmets/${reading.helmetId}/meta`).get()).val();
+  const [metaSnapshot, locationSnapshot] = await Promise.all([
+    database.ref(`helmets/${reading.helmetId}/meta`).get(),
+    database.ref(`helmets/${reading.helmetId}/workerLocation`).get(),
+  ]);
+  const meta = metaSnapshot.val();
   if (!meta || typeof meta.siteId !== 'string' || !SAFE_ID.test(meta.siteId)) {
     return { status: 'skipped', reason: 'HELMET_SITE_UNKNOWN' };
   }
 
   const now = clock();
-  const alert = buildAssessmentAlertRecord({ candidate, reading, meta, now });
+  const alert = buildAssessmentAlertRecord({
+    candidate,
+    reading,
+    meta,
+    workerLocation: locationSnapshot.val(),
+    now,
+  });
   const rank = SEVERITY_RANK[candidate.severity];
 
   // Cooldown marker in the existing backend-only dedupe branch.

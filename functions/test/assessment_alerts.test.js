@@ -130,6 +130,50 @@ test('a temperature warning creates one app-compatible alert record', async () =
   assert.equal('notificationDelivery' in alert, false);
 });
 
+test('fresh phone GPS is copied into a new alert', async () => {
+  const database = new FakeDatabase();
+  database.data.helmets.helmet001.workerLocation = {
+    latitude: 31.5204,
+    longitude: 74.3587,
+    accuracyM: 7.5,
+    updatedAt: now - 30_000,
+    source: 'phoneGps',
+  };
+  const result = await createAlertFromAssessment({
+    database,
+    assessment: temperatureWarning(),
+    reading: reading(),
+    clock: () => now,
+  });
+  assert.equal(result.status, 'created');
+  assert.deepEqual(database.data.alerts[result.alertId].location, {
+    latitude: 31.5204,
+    longitude: 74.3587,
+    accuracyM: 7.5,
+    source: 'phoneGps',
+    capturedAt: now - 30_000,
+  });
+});
+
+test('stale phone GPS keeps the existing no-location behavior', async () => {
+  const database = new FakeDatabase();
+  database.data.helmets.helmet001.workerLocation = {
+    latitude: 31.5204,
+    longitude: 74.3587,
+    accuracyM: 7.5,
+    updatedAt: now - 120_001,
+    source: 'phoneGps',
+  };
+  const result = await createAlertFromAssessment({
+    database,
+    assessment: temperatureWarning(),
+    reading: reading(),
+    clock: () => now,
+  });
+  assert.equal(result.status, 'created');
+  assert.equal('location' in database.data.alerts[result.alertId], false);
+});
+
 test('a detected fall is a critical fall alert without a fabricated measurement', async () => {
   const database = new FakeDatabase();
   await createAlertFromAssessment({

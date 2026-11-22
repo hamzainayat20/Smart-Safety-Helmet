@@ -34,12 +34,17 @@ async function updateDeliveryAudit(database, alertId, patch, now) {
 
 export function createAlertDelivery({ database, messaging, clock = () => Date.now() }) {
   return async function deliverAlert(alert) {
+    await updateDeliveryAudit(database, alert.alertId, {
+      inProgress: true,
+      lastErrorCode: null,
+    }, clock());
     const targets = await supervisorTokensFor(database, alert);
     if (targets.length === 0) {
       await updateDeliveryAudit(database, alert.alertId, {
         successCount: 0,
         failureCount: 0,
         lastErrorCode: 'NO_AUTHORIZED_TOKENS',
+        inProgress: false,
       }, clock());
       return (await database.ref(`alerts/${alert.alertId}`).get()).val();
     }
@@ -89,12 +94,14 @@ export function createAlertDelivery({ database, messaging, clock = () => Date.no
         successCount: response.successCount,
         failureCount: response.failureCount,
         lastErrorCode,
+        inProgress: false,
       }, clock());
     } catch (error) {
       await updateDeliveryAudit(database, alert.alertId, {
         successCount: 0,
         failureCount: targets.length,
         lastErrorCode: error?.code ?? 'MESSAGING_ERROR',
+        inProgress: false,
       }, clock());
     }
     return (await database.ref(`alerts/${alert.alertId}`).get()).val();

@@ -531,6 +531,8 @@ final class GPSLocation {
     required this.latitudeDegrees,
     required this.longitudeDegrees,
     this.hdop,
+    this.accuracyM,
+    this.source,
     required DateTime capturedAt,
     required this.isLastKnown,
   }) : capturedAt = capturedAt.toUtc() {
@@ -538,11 +540,19 @@ final class GPSLocation {
     if (hdop != null && (!hdop!.isFinite || hdop! < 0 || hdop! > 5)) {
       throw ModelValidationException('HDOP must be between 0 and 5');
     }
+    if (accuracyM != null && (!accuracyM!.isFinite || accuracyM! < 0)) {
+      throw ModelValidationException('Location accuracy must be non-negative');
+    }
+    if (source != null && source != 'phoneGps') {
+      throw ModelValidationException('Location source must be phoneGps');
+    }
   }
 
   final double latitudeDegrees;
   final double longitudeDegrees;
   final double? hdop;
+  final double? accuracyM;
+  final String? source;
   final DateTime capturedAt;
   final bool isLastKnown;
 
@@ -568,14 +578,20 @@ final class GPSLocation {
     latitudeDegrees: _requiredNumber(json, 'latitude', min: -90, max: 90),
     longitudeDegrees: _requiredNumber(json, 'longitude', min: -180, max: 180),
     hdop: _optionalNumber(json, 'hdop', min: 0, max: 5),
+    accuracyM: _optionalNumber(json, 'accuracyM', min: 0),
+    source: _optionalString(json, 'source'),
     capturedAt: _requiredTimestamp(json, 'capturedAt'),
-    isLastKnown: _requiredBool(json, 'isLastKnown'),
+    isLastKnown: json['isLastKnown'] == null
+        ? false
+        : _requiredBool(json, 'isLastKnown'),
   );
 
   Map<String, dynamic> toJson() => {
     'latitude': latitudeDegrees,
     'longitude': longitudeDegrees,
     if (hdop != null) 'hdop': hdop,
+    if (accuracyM != null) 'accuracyM': accuracyM,
+    if (source != null) 'source': source,
     'capturedAt': capturedAt.millisecondsSinceEpoch,
     'isLastKnown': isLastKnown,
   };
@@ -1031,6 +1047,44 @@ final class SensorReading {
   };
 }
 
+final class AlertNotificationDelivery {
+  const AlertNotificationDelivery({
+    required this.inProgress,
+    required this.successCount,
+    required this.failureCount,
+    this.lastErrorCode,
+    this.lastAttemptAt,
+  });
+
+  final bool inProgress;
+  final int successCount;
+  final int failureCount;
+  final String? lastErrorCode;
+  final DateTime? lastAttemptAt;
+
+  bool get noAuthorizedTokens => lastErrorCode == 'NO_AUTHORIZED_TOKENS';
+  bool get failed => !inProgress && !noAuthorizedTokens &&
+      (failureCount > 0 || lastErrorCode != null);
+
+  factory AlertNotificationDelivery.fromJson(Map<String, dynamic> json) =>
+      AlertNotificationDelivery(
+        inProgress: json['inProgress'] == true,
+        successCount: (json['successCount'] as num?)?.toInt() ?? 0,
+        failureCount: (json['failureCount'] as num?)?.toInt() ?? 0,
+        lastErrorCode: _optionalString(json, 'lastErrorCode'),
+        lastAttemptAt: _optionalTimestamp(json, 'lastAttemptAt'),
+      );
+
+  Map<String, dynamic> toJson() => {
+    'inProgress': inProgress,
+    'successCount': successCount,
+    'failureCount': failureCount,
+    if (lastErrorCode != null) 'lastErrorCode': lastErrorCode,
+    if (lastAttemptAt != null)
+      'lastAttemptAt': lastAttemptAt!.millisecondsSinceEpoch,
+  };
+}
+
 final class SafetyAlert {
   SafetyAlert({
     this.schemaVersion = currentSchemaVersion,
@@ -1057,6 +1111,7 @@ final class SafetyAlert {
     this.resolvedBy,
     DateTime? resolvedAt,
     this.resolutionNote,
+    this.notificationDelivery,
   }) : evidence = UnmodifiableMapView(Map<String, double?>.from(evidence)),
        deviceTimestamp = deviceTimestamp.toUtc(),
        serverReceivedAt = serverReceivedAt.toUtc(),
@@ -1143,6 +1198,7 @@ final class SafetyAlert {
   final String? resolvedBy;
   final DateTime? resolvedAt;
   final String? resolutionNote;
+  final AlertNotificationDelivery? notificationDelivery;
 
   factory SafetyAlert.fromJson(Map<String, dynamic> json) {
     final rawEvidence = json['evidence'];
@@ -1163,6 +1219,7 @@ final class SafetyAlert {
       }
     }
     final rawLocation = json['location'];
+    final rawDelivery = json['notificationDelivery'];
     return SafetyAlert(
       schemaVersion: _requiredString(json, 'schemaVersion'),
       alertId: _requiredString(json, 'alertId'),
@@ -1197,6 +1254,11 @@ final class SafetyAlert {
       resolvedBy: _optionalString(json, 'resolvedBy'),
       resolvedAt: _optionalTimestamp(json, 'resolvedAt'),
       resolutionNote: _optionalString(json, 'resolutionNote'),
+      notificationDelivery: rawDelivery == null
+          ? null
+          : AlertNotificationDelivery.fromJson(
+              Map<String, dynamic>.from(rawDelivery as Map),
+            ),
     );
   }
 
@@ -1226,6 +1288,8 @@ final class SafetyAlert {
     if (resolvedBy != null) 'resolvedBy': resolvedBy,
     if (resolvedAt != null) 'resolvedAt': resolvedAt!.millisecondsSinceEpoch,
     if (resolutionNote != null) 'resolutionNote': resolutionNote,
+    if (notificationDelivery != null)
+      'notificationDelivery': notificationDelivery!.toJson(),
   };
 
   SafetyAlert viewed({required String actorUid, required DateTime at}) =>
@@ -1256,6 +1320,7 @@ final class SafetyAlert {
         resolvedBy: resolvedBy,
         resolvedAt: resolvedAt,
         resolutionNote: resolutionNote,
+        notificationDelivery: notificationDelivery,
       );
 
   SafetyAlert acknowledged({required String actorUid, required DateTime at}) =>
@@ -1279,13 +1344,14 @@ final class SafetyAlert {
             ? AlertStatus.resolved
             : AlertStatus.acknowledged,
         deliveredAt: deliveredAt,
-        viewedBy: viewedBy,
-        viewedAt: viewedAt,
+        viewedBy: viewedBy ?? actorUid,
+        viewedAt: viewedAt ?? at,
         acknowledgedBy: acknowledgedBy ?? actorUid,
         acknowledgedAt: acknowledgedAt ?? at,
         resolvedBy: resolvedBy,
         resolvedAt: resolvedAt,
         resolutionNote: resolutionNote,
+        notificationDelivery: notificationDelivery,
       );
 
   SafetyAlert resolved({
@@ -1310,13 +1376,14 @@ final class SafetyAlert {
     location: location,
     status: AlertStatus.resolved,
     deliveredAt: deliveredAt,
-    viewedBy: viewedBy,
-    viewedAt: viewedAt,
+    viewedBy: viewedBy ?? actorUid,
+    viewedAt: viewedAt ?? at,
     acknowledgedBy: acknowledgedBy,
     acknowledgedAt: acknowledgedAt,
     resolvedBy: resolvedBy ?? actorUid,
     resolvedAt: resolvedAt ?? at,
     resolutionNote: resolutionNote ?? note,
+    notificationDelivery: notificationDelivery,
   );
 }
 

@@ -89,6 +89,9 @@ class WorkerDashboardPage extends StatelessWidget {
     final assessment = helmet == null
         ? null
         : viewModel.assessmentFor(helmet.helmetId);
+    final workerLocation = helmet == null
+        ? null
+        : viewModel.workerLocationFor(helmet.helmetId);
     final monitoringState = helmet == null
         ? MonitoringState.empty
         : viewModel.monitoringStateFor(helmet);
@@ -133,9 +136,7 @@ class WorkerDashboardPage extends StatelessWidget {
                     reading == null
                         ? 'Link unknown'
                         : 'Link ${_connectivityLabel(reading.connectivity)}',
-                    reading == null
-                        ? 'GPS unknown'
-                        : 'GPS ${_gpsLabel(reading.gpsStatus)}',
+                    formatWorkerLocationStatus(workerLocation),
                   ],
           ),
           if (helmet != null) ...[
@@ -311,12 +312,6 @@ class WorkerDashboardPage extends StatelessWidget {
         ConnectivityStatus.offline => 'offline',
       };
 
-  static String _gpsLabel(GpsStatus status) => switch (status) {
-    GpsStatus.valid => 'fix',
-    GpsStatus.acquiring => 'acquiring',
-    GpsStatus.lost => 'lost',
-    GpsStatus.invalid => 'unavailable',
-  };
 }
 
 /// The one thing a worker must read: state, meaning, and the next action.

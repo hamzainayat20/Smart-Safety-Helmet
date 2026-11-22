@@ -200,9 +200,7 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
             ),
             _DetailRow(
               label: 'Delivered',
-              value: alert.deliveredAt == null
-                  ? 'Remote delivery not confirmed'
-                  : _utc(alert.deliveredAt!),
+              value: _deliveryStatus(alert),
             ),
             _DetailRow(
               label: 'Viewed',
@@ -235,10 +233,18 @@ class _AlertDetailScreenState extends State<AlertDetailScreen> {
               ),
               _DetailRow(
                 label: 'Fix',
-                value: alert.location!.isLastKnown
+                value: alert.location!.source == 'phoneGps'
+                    ? 'Phone GPS'
+                    : alert.location!.isLastKnown
                     ? 'Last known location'
                     : 'Incident-time fix',
               ),
+              if (alert.location!.accuracyM != null)
+                _DetailRow(
+                  label: 'Accuracy',
+                  value:
+                      '${alert.location!.accuracyM!.toStringAsFixed(0)} m',
+                ),
             ],
             const Divider(),
             if (_viewModel.latestPhoneLocation == null)
@@ -581,12 +587,12 @@ class _LifecycleTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final steps = <(String, DateTime?, IconData)>[
-      ('Raised', alert.serverReceivedAt, Icons.notification_add_outlined),
-      ('Delivered', alert.deliveredAt, Icons.send_outlined),
-      ('Seen', alert.viewedAt, Icons.visibility_outlined),
-      ('Acknowledged', alert.acknowledgedAt, Icons.task_alt_rounded),
-      ('Closed', alert.resolvedAt, Icons.verified_outlined),
+    final steps = <(String, DateTime?, IconData, String)>[
+      ('Raised', alert.serverReceivedAt, Icons.notification_add_outlined, ''),
+      ('Delivered', alert.deliveredAt, Icons.send_outlined, _deliveryStatus(alert)),
+      ('Seen', alert.viewedAt, Icons.visibility_outlined, 'Pending'),
+      ('Acknowledged', alert.acknowledgedAt, Icons.task_alt_rounded, 'Pending'),
+      ('Closed', alert.resolvedAt, Icons.verified_outlined, 'Pending'),
     ];
     return Column(
       children: [
@@ -595,6 +601,7 @@ class _LifecycleTimeline extends StatelessWidget {
             label: steps[i].$1,
             at: steps[i].$2,
             icon: steps[i].$3,
+            incompleteLabel: steps[i].$4,
             isLast: i == steps.length - 1,
             nextDone: i < steps.length - 1 && steps[i + 1].$2 != null,
           ),
@@ -610,6 +617,7 @@ class _TimelineStep extends StatelessWidget {
     required this.icon,
     required this.isLast,
     required this.nextDone,
+    required this.incompleteLabel,
   });
 
   final String label;
@@ -617,6 +625,7 @@ class _TimelineStep extends StatelessWidget {
   final IconData icon;
   final bool isLast;
   final bool nextDone;
+  final String incompleteLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -677,7 +686,7 @@ class _TimelineStep extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      time != null ? formatRelativeTime(time) : 'Pending',
+                      time != null ? formatRelativeTime(time) : incompleteLabel,
                       style: AppTypography.caption.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -694,6 +703,11 @@ class _TimelineStep extends StatelessWidget {
 }
 
 String _utc(DateTime value) => formatUtcTimestamp(value);
+
+String _deliveryStatus(SafetyAlert alert) {
+  if (alert.deliveredAt != null) return _utc(alert.deliveredAt!);
+  return formatAlertDeliveryStatus(alert);
+}
 
 String _evidenceLabel(String value) => value
     .replaceAllMapped(RegExp(r'([A-Z])'), (match) => ' ${match.group(1)}')

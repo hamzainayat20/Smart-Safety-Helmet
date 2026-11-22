@@ -7,9 +7,33 @@ import 'package:smart_safety/data/mock_repositories.dart';
 import 'package:smart_safety/domain/models.dart';
 import 'package:smart_safety/domain/repositories.dart';
 import 'package:smart_safety/gps_map_page.dart';
+import 'package:smart_safety/presentation/formatters.dart';
 
 void main() {
   final now = DateTime.utc(2026, 8, 3, 12);
+
+  test('worker phone location status distinguishes live, stale, and off', () {
+    final live = WorkerLocation(
+      latitudeDegrees: 31.5204,
+      longitudeDegrees: 74.3587,
+      accuracyM: 8,
+      updatedAt: now.subtract(const Duration(seconds: 37)),
+      source: 'phoneGps',
+    );
+    expect(
+      formatWorkerLocationStatus(live, now: now),
+      'Sharing location · updated 37s ago',
+    );
+    final stale = WorkerLocation(
+      latitudeDegrees: live.latitudeDegrees,
+      longitudeDegrees: live.longitudeDegrees,
+      accuracyM: live.accuracyM,
+      updatedAt: now.subtract(const Duration(minutes: 2, seconds: 1)),
+      source: 'phoneGps',
+    );
+    expect(formatWorkerLocationStatus(stale, now: now), 'Location may be stale');
+    expect(formatWorkerLocationStatus(null, now: now), 'Location off');
+  });
 
   test('invalid 0,0 coordinates are discarded without losing telemetry', () {
     final reading = SensorReading.fromJson({

@@ -35,6 +35,28 @@ String formatCoordinates(GPSLocation? location) {
       '${location.longitudeDegrees.abs().toStringAsFixed(4)}° $longitudeDirection';
 }
 
+String formatWorkerLocationStatus(
+  WorkerLocation? location, {
+  DateTime? now,
+}) {
+  if (location == null) return 'Location off';
+  final age = (now ?? DateTime.now()).toUtc().difference(location.updatedAt);
+  if (age > const Duration(minutes: 2)) return 'Location may be stale';
+  final seconds = age.isNegative ? 0 : age.inSeconds;
+  return 'Sharing location · updated ${seconds}s ago';
+}
+
+String formatAlertDeliveryStatus(SafetyAlert alert) {
+  if (alert.deliveredAt != null) return 'Delivered';
+  final delivery = alert.notificationDelivery;
+  if (delivery?.inProgress == true) return 'Pending';
+  if (delivery?.noAuthorizedTokens == true) {
+    return 'No supervisor device registered';
+  }
+  if (delivery?.failed == true) return 'Delivery failed';
+  return 'Not attempted';
+}
+
 String alertTypeLabel(AlertType type) => switch (type) {
   AlertType.gas => 'Gas Level',
   AlertType.temperature => 'High Temperature',

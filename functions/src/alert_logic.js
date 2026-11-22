@@ -384,6 +384,8 @@ export function acknowledgeTransition(alert, actorUid, now = Date.now()) {
   return {
     ...alert,
     status: 'acknowledged',
+    viewedBy: alert.viewedBy ?? actorUid,
+    viewedAt: alert.viewedAt ?? now,
     acknowledgedBy: actorUid,
     acknowledgedAt: now,
   };
@@ -420,6 +422,61 @@ export function isHazardCleared(alert, current, now = Date.now()) {
   }
 }
 
+function measurement(value, unit) {
+  if (!Number.isFinite(value)) return null;
+  const rounded = Number.isInteger(value) ? String(value) : value.toFixed(1);
+  return `${rounded} ${unit}`;
+}
+
+export function hazardOngoingReason(alert, current, now = Date.now()) {
+  if (!current || !Number.isSafeInteger(current.serverReceivedAt)) {
+    return 'The latest helmet reading is unavailable.';
+  }
+  if (now - current.serverReceivedAt > 30_000 || current.serverReceivedAt > now + 5_000) {
+    return 'The latest helmet reading is stale; wait for a fresh safe reading.';
+  }
+  const limit = Number.isFinite(alert.threshold) ? alert.threshold : null;
+  switch (alert.alertType) {
+    case 'temperature': {
+      const value = measurement(current.temperatureC, '°C');
+      const threshold = measurement(limit, '°C');
+      if (value && threshold) return `Temperature is still ${value}; the limit is ${threshold}.`;
+      if (value) return `Temperature is still ${value} and the helmet has not reported a safe state.`;
+      break;
+    }
+    case 'humidity': {
+      const value = measurement(current.humidityPct, '%');
+      if (value) return `Humidity is still ${value} and remains outside the safe range.`;
+      break;
+    }
+    case 'gas': {
+      const value = measurement(current.gasPpm, 'ppm');
+      if (current.gasWarmUp === true) return 'The gas sensor is still warming up.';
+      if (value) return `Gas is still ${value} and the helmet has not reported a safe state.`;
+      break;
+    }
+    case 'fall':
+      if (typeof current.fallState === 'string') {
+        return `Fall status is still ${current.fallState}; a normal state is required.`;
+      }
+      break;
+    case 'battery': {
+      const value = measurement(current.batteryPct, '%');
+      if (value) return `Battery is still ${value}; at least 20 % is required.`;
+      break;
+    }
+    case 'connectivity':
+      return `Helmet connectivity is still ${current.connectivity ?? 'unavailable'}; online is required.`;
+    case 'sensor_fault':
+      return current.sensorFault === true
+        ? 'The helmet still reports a sensor fault.'
+        : 'The latest helmet state does not confirm that the sensor fault cleared.';
+    default:
+      break;
+  }
+  return 'The latest helmet reading does not confirm that the physical hazard has cleared.';
+}
+
 export function resolveTransition(alert, actorUid, note, current, now = Date.now()) {
   if (alert.status === 'resolved') return alert;
   if (alert.status !== 'acknowledged') {
@@ -427,13 +484,15 @@ export function resolveTransition(alert, actorUid, note, current, now = Date.now
   }
   if (!isHazardCleared(alert, current, now)) {
     throw new AlertValidationError(
-      'The latest trusted helmet state does not confirm that the physical hazard has cleared.',
+      hazardOngoingReason(alert, current, now),
       'failed-precondition',
     );
   }
   return {
     ...alert,
     status: 'resolved',
+    viewedBy: alert.viewedBy ?? actorUid,
+    viewedAt: alert.viewedAt ?? now,
     resolvedBy: actorUid,
     resolvedAt: now,
     resolutionNote: sanitizeResolutionNote(note),

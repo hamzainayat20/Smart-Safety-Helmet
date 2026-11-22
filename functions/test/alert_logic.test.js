@@ -12,6 +12,7 @@ import {
   tokenAssociationUpdates,
   tokenRemovalUpdates,
   userCanAccessAlert,
+  viewedTransition,
   validateAlertDecision,
   validateAlertPayload,
 } from '../src/alert_logic.js';
@@ -206,8 +207,43 @@ describe('audited lifecycle transitions', () => {
     const secondRetry = acknowledgeTransition(first, 'supervisor_B', now + 201);
     assert.equal(secondRetry.acknowledgedBy, 'supervisor_A');
     assert.equal(secondRetry.acknowledgedAt, now + 200);
+    assert.equal(secondRetry.viewedBy, 'supervisor_A');
+    assert.equal(secondRetry.viewedAt, now + 200);
     assert.deepEqual(secondRetry.evidence, original.evidence);
     assert.equal(original.status, 'delivered');
+  });
+
+  test('acknowledgement preserves an earlier seen audit', () => {
+    const viewed = viewedTransition(alert(), 'supervisor_A', now + 50);
+    const acknowledged = acknowledgeTransition(viewed, 'supervisor_B', now + 100);
+    assert.equal(acknowledged.viewedBy, 'supervisor_A');
+    assert.equal(acknowledged.viewedAt, now + 50);
+  });
+
+  test('resolution backfills seen audit and explains an ongoing temperature hazard', () => {
+    const acknowledged = {
+      ...alert(),
+      alertType: 'temperature',
+      threshold: 35,
+      status: 'acknowledged',
+      acknowledgedBy: 'supervisor_A',
+      acknowledgedAt: now,
+    };
+    assert.throws(
+      () => resolveTransition(acknowledged, 'supervisor_A', 'Checked', {
+        serverReceivedAt: now + 100,
+        severity: 'critical',
+        temperatureC: 39,
+      }, now + 100),
+      /Temperature is still 39 °C; the limit is 35 °C/,
+    );
+    const resolved = resolveTransition(acknowledged, 'supervisor_A', 'Checked', {
+      serverReceivedAt: now + 100,
+      severity: 'safe',
+      temperatureC: 30,
+    }, now + 100);
+    assert.equal(resolved.viewedBy, 'supervisor_A');
+    assert.equal(resolved.viewedAt, now + 100);
   });
 
   test('resolution requires acknowledgement and a fresh trusted safe state', () => {

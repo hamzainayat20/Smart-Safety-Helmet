@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_safety/domain/models.dart';
+import 'package:smart_safety/presentation/formatters.dart';
 
 // These records have exactly the shape written by
 // functions/src/assessment_alerts.js (see functions/test/assessment_alerts.test.js).
@@ -60,6 +61,47 @@ void main() {
     expect(alert.status, AlertStatus.created);
     expect(alert.location, isNull);
     expect(alert.evidence['fallThreshold'], 0.46);
+  });
+
+  test('phone GPS alert location keeps source and accuracy', () {
+    final json = Map<String, dynamic>.from(_temperatureAlert())
+      ..['location'] = {
+        'latitude': 31.5204,
+        'longitude': 74.3587,
+        'accuracyM': 7.5,
+        'source': 'phoneGps',
+        'capturedAt': 1795006264990,
+      };
+    final alert = SafetyAlert.fromJson(json);
+    expect(alert.location!.source, 'phoneGps');
+    expect(alert.location!.accuracyM, 7.5);
+    expect(alert.location!.isLastKnown, isFalse);
+  });
+
+  test('delivery audit distinguishes sending, no device, and failure', () {
+    SafetyAlert parse(Map<String, Object?> delivery) => SafetyAlert.fromJson(
+      Map<String, dynamic>.from(_temperatureAlert())
+        ..['notificationDelivery'] = delivery,
+    );
+    expect(
+      formatAlertDeliveryStatus(parse({'inProgress': true})),
+      'Pending',
+    );
+    expect(
+      formatAlertDeliveryStatus(parse({
+        'inProgress': false,
+        'lastErrorCode': 'NO_AUTHORIZED_TOKENS',
+      })),
+      'No supervisor device registered',
+    );
+    expect(
+      formatAlertDeliveryStatus(parse({
+        'inProgress': false,
+        'failureCount': 1,
+        'lastErrorCode': 'messaging/internal-error',
+      })),
+      'Delivery failed',
+    );
   });
 
   test('assessment fall alert parses without a fabricated measurement', () {
